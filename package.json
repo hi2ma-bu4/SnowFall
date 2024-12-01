@@ -8,15 +8,22 @@
     "test": "tests"
   },
   "scripts": {
-    "build": "tsc --noEmit && babel src --out-dir dist --extensions \".ts,.tsx\"",
+    "build": "node build.js",
     "start": "node dist/snowfall.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "comments": {
+    "build": "tsc --noEmit && babel src --out-dir dist --extensions \".ts,.tsx\""
   },
   "devDependencies": {
     "@babel/cli": "^7.25.9",
     "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.26.0",
     "@babel/preset-typescript": "^7.26.0",
+    "babelify": "^10.0.0",
+    "browserify": "^17.0.1",
+    "exorcist": "^2.0.0",
+    "tsify": "^5.0.4",
     "typescript": "^5.7.2"
   },
   "repository": {
