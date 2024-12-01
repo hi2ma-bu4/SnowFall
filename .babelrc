@@ -3,9 +3,15 @@
         [
             "@babel/preset-env",
             {
-                "targets": "> 0.25%, not dead" // 対応するブラウザの指定
+                "targets": "> 2%, not dead", // 対応するブラウザの指定
+                "useBuiltIns": "usage", // 必要なポリフィルのみを自動でインポート
+                "corejs": 3 // core-jsのバージョン
             }
         ],
         "@babel/preset-typescript"
-    ]
+    ],
+    "plugins": [
+        "@babel/plugin-transform-runtime" // 反復的なコードを効率化
+    ],
+    "comments": false // コメントを削除してファイルサイズを小さくする
 }
