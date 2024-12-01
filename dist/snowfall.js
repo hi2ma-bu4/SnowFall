@@ -172,6 +172,15 @@ module.exports = _wrapNativeSuper, module.exports.__esModule = true, module.expo
 },{"./construct.js":3,"./getPrototypeOf.js":6,"./isNativeFunction.js":9,"./setPrototypeOf.js":12}],17:[function(require,module,exports){
 "use strict";
 
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+Object.defineProperty(exports, "Lexer", {
+  enumerable: true,
+  get: function get() {
+    return _lexer.Lexer;
+  }
+});
 var _lexer = require("./lib/lexer");
 var input = "\nx = 5;\ny = 10;\napple = 1;\na = x; // \u3068\u308A\u3042\u3048\u305A\u3001x\u306E\u5024\u3092\u4EE3\u5165\nb = x+2;\n\n/*\n    \u30C7\u30FC\u30BF\u3060\u3088()\n*/\n\nhoge = \"fuga\";\n\n";
 var lexer = new _lexer.Lexer(input);

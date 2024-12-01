@@ -19,3 +19,6 @@ const lexer = new Lexer(input);
 const tokens = lexer.tokenize();
 
 console.log(tokens);
+
+// 外部搬出
+export { Lexer };
