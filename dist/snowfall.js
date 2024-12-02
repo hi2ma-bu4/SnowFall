@@ -172,22 +172,20 @@ module.exports = _wrapNativeSuper, module.exports.__esModule = true, module.expo
 },{"./construct.js":3,"./getPrototypeOf.js":6,"./isNativeFunction.js":9,"./setPrototypeOf.js":12}],17:[function(require,module,exports){
 "use strict";
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-Object.defineProperty(exports, "Lexer", {
-  enumerable: true,
-  get: function get() {
-    return _lexer.Lexer;
-  }
-});
 var _lexer = require("./lib/lexer");
-var input = "\nx = 5;\ny = 10;\napple = 1;\na = x; // \u3068\u308A\u3042\u3048\u305A\u3001x\u306E\u5024\u3092\u4EE3\u5165\nb = x+2;\n\n/*\n    \u30C7\u30FC\u30BF\u3060\u3088()\n*/\n\nhoge = \"fuga\";\n\n";
+var _parser = require("./lib/parser");
+if (typeof window !== "undefined") {
+  window.Lexer = _lexer.Lexer;
+}
+var input = "\nint x = 5;\nint y = 10;\nint apple = 1;\nint a = x; // \u3068\u308A\u3042\u3048\u305A\u3001x\u306E\u5024\u3092\u4EE3\u5165\nint b = apple;\n\n/*\n    \u30C7\u30FC\u30BF\u3060\u3088()\n*/\n\nstring hoge = \"fuga\";\n\n";
 var lexer = new _lexer.Lexer(input);
 var tokens = lexer.tokenize();
 console.log(tokens);
+var parser = new _parser.Parser(tokens);
+var ast = parser.parse();
+console.log(ast);
 
-},{"./lib/lexer":18}],18:[function(require,module,exports){
+},{"./lib/lexer":18,"./lib/parser":19}],18:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -218,13 +216,16 @@ var LexerError = function (_Error) {
 var Lexer = exports.Lexer = function () {
   function Lexer(input) {
     (0, _classCallCheck2["default"])(this, Lexer);
-    (0, _defineProperty2["default"])(this, "position", 0);
-    (0, _defineProperty2["default"])(this, "row_counter", 0);
-    (0, _defineProperty2["default"])(this, "oldPosition", -1);
     (0, _defineProperty2["default"])(this, "currentChar", null);
-    (0, _defineProperty2["default"])(this, "funcList", [this.newline.bind(this), this.string.bind(this), this.identifier.bind(this), this.number.bind(this), this.operator.bind(this), this.semicolon.bind(this)]);
+    (0, _defineProperty2["default"])(this, "funcList", [this.newline.bind(this), this.string.bind(this), this.keyword.bind(this), this.identifier.bind(this), this.number.bind(this), this.operator.bind(this), this.semicolon.bind(this)]);
     this.input = input;
     this.input_length = input.length;
+    this.position = 0;
+    this.rowCounter = 0;
+    this.colCounter = 0;
+    this.oldPosition = -1;
+    this.oldRowCounter = 0;
+    this.oldColCounter = 0;
     this.advance();
   }
   return (0, _createClass2["default"])(Lexer, [{
@@ -233,10 +234,7 @@ var Lexer = exports.Lexer = function () {
       var diff = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
       if (diff) {
         diff--;
-        if (this.position + diff >= this.input_length) {
-          return null;
-        }
-        return this.input[this.position + diff];
+        return this.input[this.position + diff] || null;
       }
       return this.currentChar;
     }
@@ -246,6 +244,7 @@ var Lexer = exports.Lexer = function () {
       if (this.position < this.input_length) {
         this.currentChar = this.input[this.position];
         this.position++;
+        this.colCounter++;
       } else {
         this.currentChar = null;
       }
@@ -261,6 +260,8 @@ var Lexer = exports.Lexer = function () {
     value: function commit() {
       if (this.position > this.oldPosition) {
         this.oldPosition = this.position;
+        this.oldRowCounter = this.rowCounter;
+        this.oldColCounter = this.colCounter;
       }
     }
   }, {
@@ -268,6 +269,8 @@ var Lexer = exports.Lexer = function () {
     value: function rollback() {
       if (this.position > this.oldPosition) {
         this.position = this.oldPosition - 1;
+        this.colCounter = this.oldColCounter - 1;
+        this.rowCounter = this.oldRowCounter;
         this.advance();
       }
     }
@@ -299,20 +302,44 @@ var Lexer = exports.Lexer = function () {
           var _currentChar = this.getCurrentChar();
           while (_currentChar && !(_currentChar === "*" && this.getCurrentChar(1) === "/")) {
             if (_currentChar === "\n") {
-              this.row_counter++;
+              this.rowCounter++;
+              this.colCounter = 0;
             }
             this.advance();
             _currentChar = this.getCurrentChar();
           }
-          this.commit();
+          this.advance();
+          this.advanceCommit();
         }
       }
+    }
+  }, {
+    key: "keyword",
+    value: function keyword() {
+      var keywords = ["int", "string"];
+      var kwStr = "";
+      var currentChar = this.getCurrentChar();
+      while (currentChar && /[a-zA-Z]/.test(currentChar)) {
+        kwStr += currentChar;
+        this.advance();
+        currentChar = this.getCurrentChar();
+      }
+      if (keywords.includes(kwStr)) {
+        this.commit();
+        return {
+          type: "KEYWORD",
+          value: kwStr
+        };
+      }
+      this.rollback();
+      return null;
     }
   }, {
     key: "newline",
     value: function newline() {
       if (this.getCurrentChar() === "\n") {
-        this.row_counter++;
+        this.rowCounter++;
+        this.colCounter = 0;
         this.advanceCommit();
         return {
           type: "NEWLINE",
@@ -358,7 +385,7 @@ var Lexer = exports.Lexer = function () {
         this.commit();
         return {
           type: "NUMBER",
-          value: parseFloat(numberStr)
+          value: numberStr
         };
       }
       this.rollback();
@@ -379,7 +406,8 @@ var Lexer = exports.Lexer = function () {
         while (currentChar && currentChar !== quote && (is_multi_line || currentChar !== "\n")) {
           stringStr += currentChar;
           if (currentChar === "\n") {
-            this.row_counter++;
+            this.rowCounter++;
+            this.colCounter = 0;
           }
           this.advance();
           currentChar = this.getCurrentChar();
@@ -579,7 +607,182 @@ var Lexer = exports.Lexer = function () {
   }, {
     key: "logError",
     value: function logError(message) {
-      throw new LexerError("".concat(message, " (").concat(this.row_counter, "{").concat(this.position, "})"));
+      throw new LexerError("".concat(message, " (").concat(this.rowCounter, ":").concat(this.colCounter, "{").concat(this.position, "})"));
+    }
+  }]);
+}();
+
+},{"@babel/runtime/helpers/classCallCheck":2,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/getPrototypeOf":6,"@babel/runtime/helpers/inherits":7,"@babel/runtime/helpers/interopRequireDefault":8,"@babel/runtime/helpers/possibleConstructorReturn":11,"@babel/runtime/helpers/wrapNativeSuper":16}],19:[function(require,module,exports){
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.Parser = void 0;
+var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
+var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var _possibleConstructorReturn2 = _interopRequireDefault(require("@babel/runtime/helpers/possibleConstructorReturn"));
+var _getPrototypeOf2 = _interopRequireDefault(require("@babel/runtime/helpers/getPrototypeOf"));
+var _inherits2 = _interopRequireDefault(require("@babel/runtime/helpers/inherits"));
+var _wrapNativeSuper2 = _interopRequireDefault(require("@babel/runtime/helpers/wrapNativeSuper"));
+function _callSuper(t, o, e) { return o = (0, _getPrototypeOf2["default"])(o), (0, _possibleConstructorReturn2["default"])(t, _isNativeReflectConstruct() ? Reflect.construct(o, e || [], (0, _getPrototypeOf2["default"])(t).constructor) : o.apply(t, e)); }
+function _isNativeReflectConstruct() { try { var t = !Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {})); } catch (t) {} return (_isNativeReflectConstruct = function _isNativeReflectConstruct() { return !!t; })(); }
+var ParserError = function (_Error) {
+  function ParserError() {
+    (0, _classCallCheck2["default"])(this, ParserError);
+    return _callSuper(this, ParserError, arguments);
+  }
+  (0, _inherits2["default"])(ParserError, _Error);
+  return (0, _createClass2["default"])(ParserError);
+}((0, _wrapNativeSuper2["default"])(Error));
+var Parser = exports.Parser = function () {
+  function Parser(tokens) {
+    (0, _classCallCheck2["default"])(this, Parser);
+    (0, _defineProperty2["default"])(this, "currentToken", null);
+    this.tokens = tokens;
+    this.tokens_length = tokens.length;
+    this.position = 0;
+    this.rowCounter = 0;
+    this.colCounter = 0;
+    this.oldPosition = -1;
+    this.oldRowCounter = 0;
+    this.oldColCounter = 0;
+    this.advance();
+  }
+  return (0, _createClass2["default"])(Parser, [{
+    key: "getCurrentToken",
+    value: function getCurrentToken() {
+      var diff = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+      if (diff) {
+        diff--;
+        return this.tokens[this.position] || null;
+      }
+      return this.currentToken;
+    }
+  }, {
+    key: "advance",
+    value: function advance() {
+      if (this.position < this.tokens_length) {
+        this.currentToken = this.tokens[this.position];
+        this.position++;
+        this.colCounter += this.currentToken.value.length;
+      } else {
+        this.currentToken = null;
+      }
+    }
+  }, {
+    key: "advanceCommit",
+    value: function advanceCommit() {
+      this.advance();
+      this.commit();
+    }
+  }, {
+    key: "commit",
+    value: function commit() {
+      if (this.position > this.oldPosition) {
+        this.oldPosition = this.position;
+        this.oldRowCounter = this.rowCounter;
+        this.oldColCounter = this.colCounter;
+      }
+    }
+  }, {
+    key: "rollback",
+    value: function rollback() {
+      if (this.position > this.oldPosition) {
+        this.position = this.oldPosition - 1;
+        this.rowCounter = this.oldRowCounter;
+        this.colCounter = this.oldColCounter - 1;
+        this.advance();
+      }
+    }
+  }, {
+    key: "skipNewline",
+    value: function skipNewline() {
+      var currentToken = this.currentToken;
+      while (currentToken && currentToken.type === "NEWLINE") {
+        this.rowCounter++;
+        this.colCounter = 0;
+        this.advance();
+        currentToken = this.currentToken;
+      }
+    }
+  }, {
+    key: "match",
+    value: function match() {
+      this.skipNewline();
+      var token = this.getCurrentToken();
+      for (var _len = arguments.length, type = new Array(_len), _key = 0; _key < _len; _key++) {
+        type[_key] = arguments[_key];
+      }
+      if (token && type.includes(token.type)) {
+        this.advance();
+        return token;
+      }
+      return null;
+    }
+  }, {
+    key: "variableDeclaration",
+    value: function variableDeclaration() {
+      var keyword = this.match("KEYWORD");
+      if (keyword) {
+        var identifier = this.match("IDENTIFIER");
+        if (identifier) {
+          var equals = this.match("ASSIGN");
+          if (equals) {
+            var value = this.match("NUMBER", "STRING", "IDENTIFIER");
+            if (value) {
+              var semicolon = this.match("SEMICOLON");
+              if (semicolon) {
+                this.commit();
+                return {
+                  type: "VariableDeclaration",
+                  dataType: keyword.value,
+                  name: identifier.value,
+                  value: value.value
+                };
+              } else {
+                this.logError("Expected ';' after variable declaration");
+              }
+            } else {
+              this.logError("Expected a value after '='");
+            }
+          } else {
+            this.logError("Expected '=' in variable declaration");
+          }
+        } else {
+          this.logError("Expected an identifier after type");
+        }
+      }
+      this.rollback();
+      return null;
+    }
+  }, {
+    key: "parse",
+    value: function parse() {
+      var program = {
+        type: "Program",
+        body: []
+      };
+      while (this.position < this.tokens.length) {
+        var declaration = this.variableDeclaration();
+        if (declaration) {
+          program.body.push(declaration);
+          continue;
+        }
+        this.skipNewline();
+        if (this.getCurrentToken() === null) {
+          break;
+        }
+        this.logError("Unexpected token: ".concat(JSON.stringify(this.getCurrentToken())));
+      }
+      return program;
+    }
+  }, {
+    key: "logError",
+    value: function logError(message) {
+      throw new ParserError("".concat(message, " (").concat(this.rowCounter, ":").concat(this.colCounter, "{").concat(this.position, "})"));
     }
   }]);
 }();

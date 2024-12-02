@@ -8,14 +8,18 @@ class LexerError extends Error {}
 class Lexer {
 	private input: string;
 	private input_length: number;
-	private position: number = 0;
-	private row_counter: number = 0;
-	private oldPosition: number = -1;
+	private position: number;
+	private rowCounter: number;
+	private colCounter: number;
+	private oldPosition: number;
+	private oldRowCounter: number;
+	private oldColCounter: number;
 	private currentChar: string | null = null;
 	private funcList = [
 		// 実行関数
 		this.newline.bind(this),
 		this.string.bind(this),
+		this.keyword.bind(this),
 		this.identifier.bind(this),
 		this.number.bind(this),
 		this.operator.bind(this),
@@ -25,16 +29,19 @@ class Lexer {
 	constructor(input: string) {
 		this.input = input;
 		this.input_length = input.length;
+		this.position = 0;
+		this.rowCounter = 0;
+		this.colCounter = 0;
+		this.oldPosition = -1;
+		this.oldRowCounter = 0;
+		this.oldColCounter = 0;
 		this.advance(); // 初期化
 	}
 
 	private getCurrentChar(diff: number | null = null): string | null {
 		if (diff) {
 			diff--;
-			if (this.position + diff >= this.input_length) {
-				return null;
-			}
-			return this.input[this.position + diff];
+			return this.input[this.position + diff] || null;
 		}
 		return this.currentChar;
 	}
@@ -43,6 +50,7 @@ class Lexer {
 		if (this.position < this.input_length) {
 			this.currentChar = this.input[this.position];
 			this.position++;
+			this.colCounter++;
 		} else {
 			this.currentChar = null;
 		}
@@ -56,12 +64,16 @@ class Lexer {
 	private commit(): void {
 		if (this.position > this.oldPosition) {
 			this.oldPosition = this.position;
+			this.oldRowCounter = this.rowCounter;
+			this.oldColCounter = this.colCounter;
 		}
 	}
 
 	private rollback(): void {
 		if (this.position > this.oldPosition) {
 			this.position = this.oldPosition - 1;
+			this.colCounter = this.oldColCounter - 1;
+			this.rowCounter = this.oldRowCounter;
 			this.advance();
 		}
 	}
@@ -93,26 +105,49 @@ class Lexer {
 				let currentChar = this.getCurrentChar();
 				while (currentChar && !(currentChar === "*" && this.getCurrentChar(1) === "/")) {
 					if (currentChar === "\n") {
-						this.row_counter++;
+						this.rowCounter++;
+						this.colCounter = 0;
 					}
 					this.advance();
 					currentChar = this.getCurrentChar();
 				}
-				this.commit();
+				this.advance();
+				this.advanceCommit();
 			}
 		}
 	}
 
-	private newline(): { type: string; value: string } | null {
+	private keyword(): Token | null {
+		const keywords = ["int", "string"];
+
+		let kwStr = "";
+		let currentChar = this.getCurrentChar();
+		while (currentChar && /[a-zA-Z]/.test(currentChar)) {
+			kwStr += currentChar;
+			this.advance();
+			currentChar = this.getCurrentChar();
+		}
+
+		if (keywords.includes(kwStr)) {
+			this.commit();
+			return { type: "KEYWORD", value: kwStr };
+		}
+
+		this.rollback();
+		return null;
+	}
+
+	private newline(): Token | null {
 		if (this.getCurrentChar() === "\n") {
-			this.row_counter++;
+			this.rowCounter++;
+			this.colCounter = 0;
 			this.advanceCommit();
 			return { type: "NEWLINE", value: "\n" };
 		}
 		return null;
 	}
 
-	private identifier(): { type: string; value: string } | null {
+	private identifier(): Token | null {
 		let idStr = "";
 		let currentChar = this.getCurrentChar();
 		if (currentChar && /[a-zA-Z_]/.test(currentChar)) {
@@ -133,7 +168,7 @@ class Lexer {
 		return null;
 	}
 
-	private number(): { type: string; value: number } | null {
+	private number(): Token | null {
 		let numberStr = "";
 		while (this.currentChar && /[0-9]/.test(this.currentChar)) {
 			numberStr += this.currentChar;
@@ -141,13 +176,13 @@ class Lexer {
 		}
 		if (numberStr) {
 			this.commit();
-			return { type: "NUMBER", value: parseFloat(numberStr) }; // 数字を number 型に変換
+			return { type: "NUMBER", value: numberStr };
 		}
 		this.rollback();
 		return null;
 	}
 
-	private string(): { type: string; value: string } | null {
+	private string(): Token | null {
 		let stringStr = "";
 		let quote = this.getCurrentChar();
 		let is_multi_line = false;
@@ -160,7 +195,8 @@ class Lexer {
 			while (currentChar && currentChar !== quote && (is_multi_line || currentChar !== "\n")) {
 				stringStr += currentChar;
 				if (currentChar === "\n") {
-					this.row_counter++;
+					this.rowCounter++;
+					this.colCounter = 0;
 				}
 				this.advance();
 				currentChar = this.getCurrentChar();
@@ -174,7 +210,7 @@ class Lexer {
 		return null;
 	}
 
-	private operator(): { type: string; value: string } | null {
+	private operator(): Token | null {
 		let currentChar = this.getCurrentChar();
 		switch (currentChar) {
 			case "+":
@@ -250,7 +286,7 @@ class Lexer {
 		}
 	}
 
-	private semicolon(): { type: string; value: string } | null {
+	private semicolon(): Token | null {
 		if (this.currentChar === ";") {
 			this.advance();
 			return { type: "SEMICOLON", value: ";" };
@@ -258,8 +294,8 @@ class Lexer {
 		return null;
 	}
 
-	public tokenize(): { type: string; value: any }[] {
-		const tokens: { type: string; value: any }[] = [];
+	public tokenize(): Token[] {
+		const tokens: Token[] = [];
 
 		while (this.getCurrentChar() !== null) {
 			// 空白
@@ -288,7 +324,7 @@ class Lexer {
 	}
 
 	private logError(message: string): void {
-		throw new LexerError(`${message} (${this.row_counter}{${this.position}})`);
+		throw new LexerError(`${message} (${this.rowCounter}:${this.colCounter}{${this.position}})`);
 	}
 }
 
