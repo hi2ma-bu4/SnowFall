@@ -41,9 +41,11 @@ class Parser {
 
 	private advance(): void {
 		if (this.position < this.tokens_length) {
-			this.currentToken = this.tokens[this.position];
+			this.currentToken = this.tokens[this.position] || null;
 			this.position++;
-			this.colCounter += this.currentToken.value.length;
+			if (this.currentToken) {
+				this.colCounter += this.currentToken.value.length;
+			}
 		} else {
 			this.currentToken = null;
 		}

@@ -172,10 +172,19 @@ module.exports = _wrapNativeSuper, module.exports.__esModule = true, module.expo
 },{"./construct.js":3,"./getPrototypeOf.js":6,"./isNativeFunction.js":9,"./setPrototypeOf.js":12}],17:[function(require,module,exports){
 "use strict";
 
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
 var _lexer = require("./lib/lexer");
 var _parser = require("./lib/parser");
+var Snowfall = (0, _createClass2["default"])(function Snowfall() {
+  (0, _classCallCheck2["default"])(this, Snowfall);
+});
+(0, _defineProperty2["default"])(Snowfall, "Lexer", _lexer.Lexer);
+(0, _defineProperty2["default"])(Snowfall, "Parser", _parser.Parser);
 if (typeof window !== "undefined") {
-  window.Lexer = _lexer.Lexer;
+  window.Snowfall = Snowfall;
 }
 var input = "\nint x = 5;\nint y = 10;\nint apple = 1;\nint a = x; // \u3068\u308A\u3042\u3048\u305A\u3001x\u306E\u5024\u3092\u4EE3\u5165\nint b = apple;\n\n/*\n    \u30C7\u30FC\u30BF\u3060\u3088()\n*/\n\nstring hoge = \"fuga\";\n\n";
 var lexer = new _lexer.Lexer(input);
@@ -185,7 +194,7 @@ var parser = new _parser.Parser(tokens);
 var ast = parser.parse();
 console.log(ast);
 
-},{"./lib/lexer":18,"./lib/parser":19}],18:[function(require,module,exports){
+},{"./lib/lexer":18,"./lib/parser":19,"@babel/runtime/helpers/classCallCheck":2,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":8}],18:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -665,9 +674,11 @@ var Parser = exports.Parser = function () {
     key: "advance",
     value: function advance() {
       if (this.position < this.tokens_length) {
-        this.currentToken = this.tokens[this.position];
+        this.currentToken = this.tokens[this.position] || null;
         this.position++;
-        this.colCounter += this.currentToken.value.length;
+        if (this.currentToken) {
+          this.colCounter += this.currentToken.value.length;
+        }
       } else {
         this.currentToken = null;
       }

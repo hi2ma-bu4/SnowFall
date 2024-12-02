@@ -3,12 +3,17 @@ import { Parser } from "./lib/parser";
 
 declare global {
 	interface Window {
-		Lexer: typeof Lexer;
+		Snowfall: typeof Snowfall;
 	}
 }
 
+class Snowfall {
+	public static Lexer: typeof Lexer = Lexer;
+	public static Parser: typeof Parser = Parser;
+}
+
 if (typeof window !== "undefined") {
-	window.Lexer = Lexer;
+	window.Snowfall = Snowfall;
 }
 
 const input = `
