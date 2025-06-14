@@ -3,7 +3,7 @@
         [
             "@babel/preset-env",
             {
-                "targets": "> 2%, not dead", // 対応するブラウザの指定
+                "targets": "last 8 Chrome versions, last 8 Firefox versions, last 8 Safari versions, last 8 Edge versions", // 対応するブラウザの指定
                 "useBuiltIns": "usage", // 必要なポリフィルのみを自動でインポート
                 "corejs": 3 // core-jsのバージョン
             }

@@ -114,6 +114,9 @@ async function minifyCode() {
 				format: "es",
 			});
 			console.log("✅ 型定義の単一ファイル出力完了！");
+
+			console.log("🧹 typesTmpリセット中...");
+			prepareDir(typesTmpDir);
 		}
 	} catch (e) {
 		console.error("エラーが発生しました:", e.message);

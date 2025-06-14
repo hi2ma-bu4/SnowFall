@@ -1,6 +1,13 @@
 # Created by https://www.toptal.com/developers/gitignore/api/node
 # Edit at https://www.toptal.com/developers/gitignore?templates=node
 
+### 追加分 ###
+
+#dev/tmp/*
+
+### ここまで ###
+
+
 ### Node ###
 # Logs
 logs
