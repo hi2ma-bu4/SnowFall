@@ -1,0 +1,33 @@
+import { CompiledFunction, SnowFallSettings, StatementNode } from "../const/types";
+export declare class Compiler {
+    private ast;
+    private settings;
+    private compiledFunction;
+    private parentCompiler;
+    private symbolTable;
+    private scopeDepth;
+    constructor(ast: StatementNode, settings: SnowFallSettings, parent?: Compiler | null);
+    private currentChunk;
+    private emit;
+    private emitBytes;
+    private addConstant;
+    private emitConstant;
+    private emitJump;
+    private patchJump;
+    private emitLoop;
+    private beginScope;
+    private endScope;
+    private compileNode;
+    private compileStatements;
+    private compileExpressionStatement;
+    private compileVariableDeclaration;
+    private compileIdentifier;
+    private compileIfStatement;
+    private compileForStatement;
+    private compileFunctionDeclaration;
+    private compileReturnStatement;
+    private compileCallExpression;
+    private compileUnaryExpression;
+    private compileBinaryExpression;
+    compile(): CompiledFunction;
+}

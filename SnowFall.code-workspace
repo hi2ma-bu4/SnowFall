@@ -5,8 +5,15 @@
 		}
 	],
 	"settings": {
+		"code-runner.executorMap": {
+			"javascript": "./build.bat",
+			"typescript": "./build.bat",
+			"bat": "cmd /c",
+		},
 		"cSpell.words": [
 			"corejs",
+			"LPAREN",
+			"RPAREN",
 			"tsify"
 		]
 	}

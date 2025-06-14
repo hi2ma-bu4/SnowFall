@@ -1,0 +1,34 @@
+import { ProgramNode, Token } from "../../const/types";
+export declare class Parser {
+    private tokens;
+    private pos;
+    private currentToken;
+    private peekToken;
+    private prefixParseFns;
+    private infixParseFns;
+    constructor(tokens: Token[]);
+    private advance;
+    private registerPrefix;
+    private registerInfix;
+    private expectPeek;
+    private peekPrecedence;
+    private currentPrecedence;
+    private parseExpression;
+    private parseIdentifier;
+    private parseNumericLiteral;
+    private parseStringLiteral;
+    private parsePrefixExpression;
+    private parseInfixExpression;
+    private parseGroupedExpression;
+    private parseCallExpression;
+    private parseExpressionList;
+    private parseStatement;
+    private parseBlockStatement;
+    private parseVariableDeclaration;
+    private parseReturnStatement;
+    private parseIfStatement;
+    private parseForStatement;
+    private parseFunctionDeclaration;
+    private parseExpressionStatement;
+    parse(): ProgramNode;
+}

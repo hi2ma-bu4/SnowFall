@@ -13,14 +13,6 @@ if not "%ERRORLEVEL%"=="0" (
     goto :restart
 )
 
-call npm start
-
-if not "%ERRORLEVEL%"=="0" (
-    echo.
-    echo. ÉGÉâÅ[!
-    pause
-    goto :restart
-)
 
 
 echo.
