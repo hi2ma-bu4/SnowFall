@@ -4,7 +4,7 @@ import { BinaryExpressionNode, BlockStatementNode, CallExpressionNode, Expressio
 enum Precedence {
 	LOWEST,
 	EQUALS, // ==
-	LESSGREATER, // > or <
+	LESS_GREATER, // > or <
 	SUM, // +
 	PRODUCT, // *
 	PREFIX, // -X or !X
@@ -15,8 +15,10 @@ enum Precedence {
 const precedences: { [key in TokenType]?: Precedence } = {
 	EQUAL_EQUAL: Precedence.EQUALS,
 	BANG_EQUAL: Precedence.EQUALS,
-	LESS: Precedence.LESSGREATER,
-	GREATER: Precedence.LESSGREATER,
+	GREATER: Precedence.LESS_GREATER,
+	GREATER_EQUAL: Precedence.LESS_GREATER,
+	LESS: Precedence.LESS_GREATER,
+	LESS_EQUAL: Precedence.LESS_GREATER,
 	PLUS: Precedence.SUM,
 	MINUS: Precedence.SUM,
 	SLASH: Precedence.PRODUCT,
@@ -57,8 +59,10 @@ export class Parser {
 		this.registerInfix("STAR", this.parseInfixExpression);
 		this.registerInfix("EQUAL_EQUAL", this.parseInfixExpression);
 		this.registerInfix("BANG_EQUAL", this.parseInfixExpression);
-		this.registerInfix("LESS", this.parseInfixExpression);
 		this.registerInfix("GREATER", this.parseInfixExpression);
+		this.registerInfix("GREATER_EQUAL", this.parseInfixExpression);
+		this.registerInfix("LESS", this.parseInfixExpression);
+		this.registerInfix("LESS_EQUAL", this.parseInfixExpression);
 		this.registerInfix("LPAREN", this.parseCallExpression);
 	}
 
@@ -241,8 +245,8 @@ export class Parser {
 	};
 
 	private parseIfStatement = (): IfStatementNode => {
-		this.advance(); // consume 'if'
-		this.expectPeek("LPAREN");
+		this.expectPeek("LPAREN"); // consume 'if'
+		//this.advance();
 		const test = this.parseGroupedExpression();
 
 		this.expectPeek("LBRACE");
@@ -265,8 +269,7 @@ export class Parser {
 	};
 
 	private parseForStatement = (): ForStatementNode => {
-		this.advance(); // consume 'for'
-		this.expectPeek("LPAREN");
+		this.expectPeek("LPAREN"); // consume 'for'
 		this.advance(); // at start of init
 
 		let init: StatementNode | ExpressionNode | undefined;

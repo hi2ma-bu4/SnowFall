@@ -13,7 +13,9 @@ export enum OpCode {
 	EQUAL,
 	NOT_EQUAL,
 	GREATER_THAN,
+	GREATER_EQUAL,
 	LESS_THAN,
+	LESS_EQUAL,
 
 	// 論理演算
 	NEGATE, // ! (not)

@@ -90,16 +90,34 @@ export class SnowFallVM {
 					this.stack.push(a === b);
 					break;
 				}
+				case OpCode.NOT_EQUAL: {
+					const b = this.stack.pop();
+					const a = this.stack.pop();
+					this.stack.push(a !== b);
+					break;
+				}
 				case OpCode.GREATER_THAN: {
 					const b = this.stack.pop();
 					const a = this.stack.pop();
 					this.stack.push(a > b);
 					break;
 				}
+				case OpCode.GREATER_EQUAL: {
+					const b = this.stack.pop();
+					const a = this.stack.pop();
+					this.stack.push(a >= b);
+					break;
+				}
 				case OpCode.LESS_THAN: {
 					const b = this.stack.pop();
 					const a = this.stack.pop();
 					this.stack.push(a < b);
+					break;
+				}
+				case OpCode.LESS_EQUAL: {
+					const b = this.stack.pop();
+					const a = this.stack.pop();
+					this.stack.push(a <= b);
 					break;
 				}
 

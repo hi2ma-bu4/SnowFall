@@ -490,8 +490,14 @@ var Compiler = exports.Compiler = function () {
         case "<":
           this.emit(_opcodes.OpCode.LESS_THAN);
           break;
+        case "<=":
+          this.emit(_opcodes.OpCode.LESS_EQUAL);
+          break;
         case ">":
           this.emit(_opcodes.OpCode.GREATER_THAN);
+          break;
+        case ">=":
+          this.emit(_opcodes.OpCode.GREATER_EQUAL);
           break;
         default:
           throw new Error("Compiler Error: Unknown binary operator ".concat(node.operator));
@@ -756,7 +762,7 @@ var Precedence;
 (function (Precedence) {
   Precedence[Precedence["LOWEST"] = 0] = "LOWEST";
   Precedence[Precedence["EQUALS"] = 1] = "EQUALS";
-  Precedence[Precedence["LESSGREATER"] = 2] = "LESSGREATER";
+  Precedence[Precedence["LESS_GREATER"] = 2] = "LESS_GREATER";
   Precedence[Precedence["SUM"] = 3] = "SUM";
   Precedence[Precedence["PRODUCT"] = 4] = "PRODUCT";
   Precedence[Precedence["PREFIX"] = 5] = "PREFIX";
@@ -766,8 +772,10 @@ var Precedence;
 var precedences = {
   EQUAL_EQUAL: Precedence.EQUALS,
   BANG_EQUAL: Precedence.EQUALS,
-  LESS: Precedence.LESSGREATER,
-  GREATER: Precedence.LESSGREATER,
+  GREATER: Precedence.LESS_GREATER,
+  GREATER_EQUAL: Precedence.LESS_GREATER,
+  LESS: Precedence.LESS_GREATER,
+  LESS_EQUAL: Precedence.LESS_GREATER,
   PLUS: Precedence.SUM,
   MINUS: Precedence.SUM,
   SLASH: Precedence.PRODUCT,
@@ -898,7 +906,6 @@ var Parser = exports.Parser = function () {
       };
     });
     (0, _defineProperty2["default"])(this, "parseIfStatement", function () {
-      _this.advance();
       _this.expectPeek("LPAREN");
       var test = _this.parseGroupedExpression();
       _this.expectPeek("LBRACE");
@@ -925,7 +932,6 @@ var Parser = exports.Parser = function () {
       };
     });
     (0, _defineProperty2["default"])(this, "parseForStatement", function () {
-      _this.advance();
       _this.expectPeek("LPAREN");
       _this.advance();
       var init;
@@ -1008,8 +1014,10 @@ var Parser = exports.Parser = function () {
     this.registerInfix("STAR", this.parseInfixExpression);
     this.registerInfix("EQUAL_EQUAL", this.parseInfixExpression);
     this.registerInfix("BANG_EQUAL", this.parseInfixExpression);
-    this.registerInfix("LESS", this.parseInfixExpression);
     this.registerInfix("GREATER", this.parseInfixExpression);
+    this.registerInfix("GREATER_EQUAL", this.parseInfixExpression);
+    this.registerInfix("LESS", this.parseInfixExpression);
+    this.registerInfix("LESS_EQUAL", this.parseInfixExpression);
     this.registerInfix("LPAREN", this.parseCallExpression);
   }
   return (0, _createClass2["default"])(Parser, [{
@@ -1146,19 +1154,21 @@ var OpCode;
   OpCode[OpCode["EQUAL"] = 6] = "EQUAL";
   OpCode[OpCode["NOT_EQUAL"] = 7] = "NOT_EQUAL";
   OpCode[OpCode["GREATER_THAN"] = 8] = "GREATER_THAN";
-  OpCode[OpCode["LESS_THAN"] = 9] = "LESS_THAN";
-  OpCode[OpCode["NEGATE"] = 10] = "NEGATE";
-  OpCode[OpCode["POP"] = 11] = "POP";
-  OpCode[OpCode["DEFINE_GLOBAL"] = 12] = "DEFINE_GLOBAL";
-  OpCode[OpCode["GET_GLOBAL"] = 13] = "GET_GLOBAL";
-  OpCode[OpCode["SET_GLOBAL"] = 14] = "SET_GLOBAL";
-  OpCode[OpCode["GET_LOCAL"] = 15] = "GET_LOCAL";
-  OpCode[OpCode["SET_LOCAL"] = 16] = "SET_LOCAL";
-  OpCode[OpCode["JUMP"] = 17] = "JUMP";
-  OpCode[OpCode["JUMP_IF_FALSE"] = 18] = "JUMP_IF_FALSE";
-  OpCode[OpCode["CALL"] = 19] = "CALL";
-  OpCode[OpCode["RETURN"] = 20] = "RETURN";
-  OpCode[OpCode["CALL_BUILTIN"] = 21] = "CALL_BUILTIN";
+  OpCode[OpCode["GREATER_EQUAL"] = 9] = "GREATER_EQUAL";
+  OpCode[OpCode["LESS_THAN"] = 10] = "LESS_THAN";
+  OpCode[OpCode["LESS_EQUAL"] = 11] = "LESS_EQUAL";
+  OpCode[OpCode["NEGATE"] = 12] = "NEGATE";
+  OpCode[OpCode["POP"] = 13] = "POP";
+  OpCode[OpCode["DEFINE_GLOBAL"] = 14] = "DEFINE_GLOBAL";
+  OpCode[OpCode["GET_GLOBAL"] = 15] = "GET_GLOBAL";
+  OpCode[OpCode["SET_GLOBAL"] = 16] = "SET_GLOBAL";
+  OpCode[OpCode["GET_LOCAL"] = 17] = "GET_LOCAL";
+  OpCode[OpCode["SET_LOCAL"] = 18] = "SET_LOCAL";
+  OpCode[OpCode["JUMP"] = 19] = "JUMP";
+  OpCode[OpCode["JUMP_IF_FALSE"] = 20] = "JUMP_IF_FALSE";
+  OpCode[OpCode["CALL"] = 21] = "CALL";
+  OpCode[OpCode["RETURN"] = 22] = "RETURN";
+  OpCode[OpCode["CALL_BUILTIN"] = 23] = "CALL_BUILTIN";
 })(OpCode || (exports.OpCode = OpCode = {}));
 
 },{}],18:[function(require,module,exports){
@@ -1316,46 +1326,67 @@ var SnowFallVM = exports.SnowFallVM = function () {
               this.stack.push(a === b);
               break;
             }
-          case _opcodes.OpCode.GREATER_THAN:
+          case _opcodes.OpCode.NOT_EQUAL:
             {
               var _b = this.stack.pop();
               var _a = this.stack.pop();
-              this.stack.push(_a > _b);
+              this.stack.push(_a !== _b);
+              break;
+            }
+          case _opcodes.OpCode.GREATER_THAN:
+            {
+              var _b2 = this.stack.pop();
+              var _a2 = this.stack.pop();
+              this.stack.push(_a2 > _b2);
+              break;
+            }
+          case _opcodes.OpCode.GREATER_EQUAL:
+            {
+              var _b3 = this.stack.pop();
+              var _a3 = this.stack.pop();
+              this.stack.push(_a3 >= _b3);
               break;
             }
           case _opcodes.OpCode.LESS_THAN:
             {
-              var _b2 = this.stack.pop();
-              var _a2 = this.stack.pop();
-              this.stack.push(_a2 < _b2);
+              var _b4 = this.stack.pop();
+              var _a4 = this.stack.pop();
+              this.stack.push(_a4 < _b4);
+              break;
+            }
+          case _opcodes.OpCode.LESS_EQUAL:
+            {
+              var _b5 = this.stack.pop();
+              var _a5 = this.stack.pop();
+              this.stack.push(_a5 <= _b5);
               break;
             }
           case _opcodes.OpCode.ADD:
             {
-              var _b3 = this.stack.pop();
-              var _a3 = this.stack.pop();
-              if (typeof _a3 === "number" && typeof _b3 === "number") this.stack.push(_a3 + _b3);else if (typeof _a3 === "string" || typeof _b3 === "string") this.stack.push(String(_a3) + String(_b3));else throw new Error("VM Error: Operands must be two numbers or at least one string.");
+              var _b6 = this.stack.pop();
+              var _a6 = this.stack.pop();
+              if (typeof _a6 === "number" && typeof _b6 === "number") this.stack.push(_a6 + _b6);else if (typeof _a6 === "string" || typeof _b6 === "string") this.stack.push(String(_a6) + String(_b6));else throw new Error("VM Error: Operands must be two numbers or at least one string.");
               break;
             }
           case _opcodes.OpCode.SUBTRACT:
             {
-              var _b4 = this.stack.pop();
-              var _a4 = this.stack.pop();
-              if (typeof _a4 === "number" && typeof _b4 === "number") this.stack.push(_a4 - _b4);else throw new Error("VM Error: Operands must be two numbers.");
+              var _b7 = this.stack.pop();
+              var _a7 = this.stack.pop();
+              if (typeof _a7 === "number" && typeof _b7 === "number") this.stack.push(_a7 - _b7);else throw new Error("VM Error: Operands must be two numbers.");
               break;
             }
           case _opcodes.OpCode.MULTIPLY:
             {
-              var _b5 = this.stack.pop();
-              var _a5 = this.stack.pop();
-              if (typeof _a5 === "number" && typeof _b5 === "number") this.stack.push(_a5 * _b5);else if (typeof _a5 === "string" && typeof _b5 === "number") this.stack.push(_a5.repeat(_b5));else if (typeof _a5 === "number" && typeof _b5 === "string") this.stack.push(_b5.repeat(_a5));else throw new Error("VM Error: Operands must be two numbers. Or one string and one number.");
+              var _b8 = this.stack.pop();
+              var _a8 = this.stack.pop();
+              if (typeof _a8 === "number" && typeof _b8 === "number") this.stack.push(_a8 * _b8);else if (typeof _a8 === "string" && typeof _b8 === "number") this.stack.push(_a8.repeat(_b8));else if (typeof _a8 === "number" && typeof _b8 === "string") this.stack.push(_b8.repeat(_a8));else throw new Error("VM Error: Operands must be two numbers. Or one string and one number.");
               break;
             }
           case _opcodes.OpCode.DIVIDE:
             {
-              var _b6 = this.stack.pop();
-              var _a6 = this.stack.pop();
-              if (typeof _a6 === "number" && typeof _b6 === "number") this.stack.push(_a6 / _b6);else throw new Error("VM Error: Operands must be two numbers.");
+              var _b9 = this.stack.pop();
+              var _a9 = this.stack.pop();
+              if (typeof _a9 === "number" && typeof _b9 === "number") this.stack.push(_a9 / _b9);else throw new Error("VM Error: Operands must be two numbers.");
               break;
             }
           case _opcodes.OpCode.NEGATE:

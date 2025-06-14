@@ -1,6 +1,6 @@
 {
   "name": "snowfall",
-  "version": "0.1.0.0",
+  "version": "0.1.0.1",
   "description": "自作言語",
   "main": "dist/SnowFall.js",
   "directories": {

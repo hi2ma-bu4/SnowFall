@@ -330,8 +330,14 @@ export class Compiler {
 			case "<":
 				this.emit(OpCode.LESS_THAN);
 				break;
+			case "<=":
+				this.emit(OpCode.LESS_EQUAL);
+				break;
 			case ">":
 				this.emit(OpCode.GREATER_THAN);
+				break;
+			case ">=":
+				this.emit(OpCode.GREATER_EQUAL);
 				break;
 			default:
 				throw new Error(`Compiler Error: Unknown binary operator ${node.operator}`);

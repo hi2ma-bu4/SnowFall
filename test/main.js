@@ -4,44 +4,62 @@ try {
 	console.log("is load?!");
 } catch (e) {}
 
-const editor = document.getElementById("code-editor");
-const output = document.getElementById("output");
-const runButton = document.getElementById("run-button");
-
-// デフォルトのコード
-editor.value = `
+const DEFAULT_CODE = `
 let x = 10 * 2;
 let y = x + 5;
 print(y);
 print("Hello, SnowFall!");
+
+if (x < 10) {
+	print(x + 2);
+}
 `;
 
-runButton.addEventListener("click", () => {
-	const sourceCode = editor.value;
+jasc.on("DOMContentLoaded", () => {
+	const editor = jasc.acq("#code-editor");
+	const compileOutput = jasc.acq("#compile-output");
+	const compileSize = jasc.acq("#compile-size");
+	const output = jasc.acq("#output");
+	const runButton = jasc.acq("#run-button");
 
-	// 出力エリアをクリア
-	output.textContent = "";
-	let outputHtml = "";
+	// デフォルトのコード
+	editor.value = DEFAULT_CODE;
 
-	// SnowFallの設定オブジェクト。
-	// これを拡張することで、JSの機能をSnowFallに公開できる。
-	const mySettings = {
-		builtInFunctions: {
-			print: (...args) => {
-				// コンソールの代わりに画面に出力する
-				const line = args.map(String).join(" ");
-				outputHtml += line + "\n";
-				console.log(...args); // 念のためコンソールにも
+	runButton.addEventListener("click", () => {
+		const sourceCode = editor.value;
+
+		// 出力エリアをクリア
+		compileOutput.textContent = "";
+		compileSize.textContent = "";
+		output.textContent = "";
+		let outputHtml = "";
+
+		// SnowFallの設定オブジェクト。
+		// これを拡張することで、JSの機能をSnowFallに公開できる。
+		const mySettings = {
+			builtInFunctions: {
+				print: (...args) => {
+					// コンソールの代わりに画面に出力する
+					const line = args.map(String).join(" ");
+					outputHtml += line + "\n";
+					console.log(...args); // 念のためコンソールにも
+				},
 			},
-		},
-	};
+		};
 
-	try {
-		// SnowFallライブラリのAPIを呼び出す
-		SnowFall.compileAndRun(sourceCode, mySettings);
-	} catch (e) {
-		outputHtml += "エラー: " + e.message;
-		console.error(e);
-	}
-	output.textContent = outputHtml;
+		try {
+			// SnowFallライブラリのAPIを呼び出す
+			const compiled = SnowFall.compile(sourceCode, mySettings);
+
+			const stringified = JSON.stringify(compiled, null, 0);
+			compileOutput.textContent = stringified;
+			compileSize.textContent = stringified.length + " bytes";
+
+			SnowFall.run(compiled, mySettings);
+		} catch (e) {
+			outputHtml += "エラー: " + e.message;
+			console.error(e);
+		}
+		output.textContent = outputHtml;
+	});
 });
