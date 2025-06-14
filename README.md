@@ -7,6 +7,7 @@
 
 [![GitHub repo size](https://img.shields.io/github/repo-size/hi2ma-bu4/SnowFall)](https://github.com/hi2ma-bu4/SnowFall)
 [![GitHub file size in bytes](https://img.shields.io/github/size/hi2ma-bu4/SnowFall/dist/SnowFall.js?label=SnowFall.js)](https://github.com/hi2ma-bu4/SnowFall/blob/main/dist/SnowFall.js)
+[![GitHub minify file size in bytes](https://img.shields.io/github/size/hi2ma-bu4/SnowFall/dist/SnowFall.min.js?label=SnowFall.min.js)](https://github.com/hi2ma-bu4/SnowFall/blob/main/dist/SnowFall.min.js)
 
 
 
