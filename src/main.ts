@@ -1,7 +1,7 @@
 import { Compiler } from "./compiler/compiler";
 import { Lexer } from "./compiler/libs/lexer";
 import { Parser } from "./compiler/libs/parser";
-import { CompiledOutput, SnowFallSettings } from "./const/types";
+import { CompiledOutputType, SnowFallSettings } from "./const/types";
 import { SnowFallVM } from "./vm/vm";
 
 // デフォルトの設定
@@ -17,7 +17,7 @@ const defaultSettings: SnowFallSettings = {
  * @param settings カスタム設定
  * @returns コンパイル済みオブジェクト
  */
-function compile(source: string, settings: SnowFallSettings = defaultSettings): CompiledOutput {
+function compile(source: string, settings: SnowFallSettings = defaultSettings): CompiledOutputType {
 	const lexer = new Lexer(source);
 	const tokens = lexer.tokenize();
 
@@ -34,7 +34,7 @@ function compile(source: string, settings: SnowFallSettings = defaultSettings): 
  * @param settings カスタム設定
  * @returns 最後の式の評価結果
  */
-function run(compiled: CompiledOutput, settings: SnowFallSettings = defaultSettings): any {
+function run(compiled: CompiledOutputType, settings: SnowFallSettings = defaultSettings): any {
 	const vm = new SnowFallVM(compiled, settings);
 	return vm.run();
 }

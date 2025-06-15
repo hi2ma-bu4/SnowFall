@@ -3,11 +3,16 @@ export enum OpCode {
 	PUSH_CONST,
 	PUSH_NULL,
 
+	// Boolean値
+	PUSH_TRUE,
+	PUSH_FALSE,
+
 	// 算術演算
 	ADD,
 	SUBTRACT,
 	MULTIPLY,
 	DIVIDE,
+	MODULO,
 
 	// 比較演算
 	EQUAL,
@@ -17,8 +22,10 @@ export enum OpCode {
 	LESS_THAN,
 	LESS_EQUAL,
 
-	// 論理演算
+	// 論理・ビット演算
 	NEGATE, // ! (not)
+	BITWISE_AND,
+	BITWISE_OR,
 
 	// 文と式
 	POP, // 式文の結果を捨てる
@@ -30,9 +37,16 @@ export enum OpCode {
 	GET_LOCAL,
 	SET_LOCAL,
 
+	// データ構造
+	BUILD_ARRAY,
+	BUILD_OBJECT,
+	GET_PROPERTY,
+	SET_PROPERTY,
+
 	// 制御フロー
 	JUMP,
 	JUMP_IF_FALSE,
+	LOOP,
 
 	// 関数
 	CALL,
@@ -40,4 +54,10 @@ export enum OpCode {
 
 	// 外部連携
 	CALL_BUILTIN,
+
+	// 型チェックと例外処理
+	CHECK_TYPE, // 実行時型チェック
+	SETUP_EXCEPTION, // tryブロックの開始
+	TEARDOWN_EXCEPTION, // tryブロックの終了
+	THROW, // 例外のスロー
 }

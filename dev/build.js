@@ -113,7 +113,7 @@ async function minifyCode() {
 				file: typesOutputFile,
 				format: "es",
 			});
-			console.log("✅ 型定義の単一ファイル出力完了！");
+			console.log("┗✅ 型定義の単一ファイル出力完了！");
 
 			console.log("🧹 typesTmpリセット中...");
 			prepareDir(typesTmpDir);

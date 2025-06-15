@@ -11,9 +11,15 @@
 			"bat": "cmd /c",
 		},
 		"cSpell.words": [
+			"bitwriter",
+			"CHARCODE",
 			"corejs",
+			"Lempel",
 			"LPAREN",
+			"nodenext",
 			"RPAREN",
+			"smartpack",
+			"Truncatable",
 			"tsify"
 		]
 	}

@@ -1,17 +1,24 @@
 {
   "name": "snowfall",
-  "version": "0.1.0.1",
+  "version": "0.1.1.0",
   "description": "自作言語",
   "main": "dist/SnowFall.js",
   "directories": {
     "doc": "docs",
     "test": "tests"
   },
+  "author": "hi2ma-bu4",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hi2ma-bu4/SnowFall.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hi2ma-bu4/SnowFall/issues"
+  },
+  "homepage": "https://github.com/hi2ma-bu4/SnowFall",
   "scripts": {
     "build": "node dev/build.js"
-  },
-  "comments": {
-    "build": "tsc --noEmit && babel src --out-dir dist --extensions \".ts,.tsx\""
   },
   "devDependencies": {
     "@babel/cli": "^7.25.9",
@@ -29,21 +36,11 @@
     "tsify": "^5.0.4",
     "typescript": "^5.7.2"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/hi2ma-bu4/SnowFall.git"
+  "dependencies": {
+    "@babel/runtime": "^7.26.0"
   },
-  "author": "hi2ma-bu4",
-  "license": "LGPL-2.1-only",
-  "bugs": {
-    "url": "https://github.com/hi2ma-bu4/SnowFall/issues"
-  },
-  "homepage": "https://github.com/hi2ma-bu4/SnowFall#readme",
   "volta": {
     "node": "22.15.1",
     "npm": "11.3.0"
-  },
-  "dependencies": {
-    "@babel/runtime": "^7.26.0"
   }
 }

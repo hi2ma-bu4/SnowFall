@@ -11,14 +11,18 @@
 </head>
 <body>
 	<h1>SnowFall Language Demo</h1>
-	<textarea id="code-editor" style="width: 100%; height: 150px;"></textarea>
+	<textarea id="code-editor" style="width: 100%; height: 150px; resize: vertical;"></textarea>
 	<button id="run-button">実行</button>
+	<label>
+		<input type="checkbox" id="is-compact" checked>
+		Compact
+	</label>
 	<h2>出力:</h2>
-	<pre id="output"></pre>
+	<pre id="output" style="height: 20em; overflow-y: auto; resize: vertical;"></pre>
 
 	<h3>コンパイル結果:</h3>
 	<p id="compile-size" style="margin: 0;"></p>
-	<p id="compile-output" style="font-size: 0.8em;"></p>
-
+	<p id="compile-output" style="font-size: 0.6em; word-break: break-all; height: 20em; overflow-y: auto; resize: vertical;"></p>
+	<br />
 </body>
 </html>
