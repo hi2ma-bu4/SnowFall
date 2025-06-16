@@ -50,10 +50,16 @@ export class Lexer {
 		return this.pos + 1 < this.source.length ? this.source[this.pos + 1] : null;
 	}
 
-	private string(): Token {
+	private string(quoteChar: '"' | "'" | "`"): Token {
+		const startLine = this.line;
+		const startColumn = this.column;
 		this.advance(); // consume opening "
 		let result = "";
-		while (this.currentChar !== '"' && this.currentChar !== null) {
+		while (this.currentChar !== quoteChar && this.currentChar !== null) {
+			// バッククォート以外では改行はエラー
+			if (this.currentChar === "\n" && quoteChar !== "`") {
+				throw new Error(`Lexer Error: Unterminated string at line ${startLine}, column ${startColumn}.`);
+			}
 			result += this.currentChar;
 			this.advance();
 		}
@@ -82,9 +88,37 @@ export class Lexer {
 		return this.createToken("NUMBER", result);
 	}
 
-	private skipWhitespace() {
-		while (this.currentChar !== null && /\s/.test(this.currentChar)) {
-			this.advance();
+	private skipWhitespaceAndComments() {
+		while (this.currentChar !== null) {
+			if (/\s/.test(this.currentChar)) {
+				this.advance();
+				continue;
+			}
+			// Single-line comment
+			if (this.currentChar === "/" && this.peek() === "/") {
+				// TODO: 後でどうにかする
+				// @ts-ignore
+				while (this.currentChar !== "\n" && this.currentChar !== null) {
+					this.advance();
+				}
+				continue;
+			}
+			// Multi-line comment
+			if (this.currentChar === "/" && this.peek() === "*") {
+				this.advance(); // Skip '/'
+				this.advance(); // Skip '*'
+				// TODO: 後でどうにかする
+				// @ts-ignore
+				while (this.currentChar !== null && (this.currentChar !== "*" || this.peek() !== "/")) {
+					this.advance();
+				}
+				if (this.currentChar !== null) {
+					this.advance(); // Skip '*'
+					this.advance(); // Skip '/'
+				}
+				continue;
+			}
+			break;
 		}
 	}
 
@@ -106,12 +140,14 @@ export class Lexer {
 	public tokenize(): Token[] {
 		const tokens: Token[] = [];
 		while (this.currentChar !== null) {
-			if (/\s/.test(this.currentChar)) {
-				this.skipWhitespace();
-				continue;
+			this.skipWhitespaceAndComments();
+
+			if (this.currentChar === null) {
+				break;
 			}
-			if (this.currentChar === '"') {
-				tokens.push(this.string());
+
+			if (this.currentChar === '"' || this.currentChar === "'" || this.currentChar === "`") {
+				tokens.push(this.string(this.currentChar));
 				continue;
 			}
 			if (/\d/.test(this.currentChar)) {

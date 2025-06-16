@@ -183,27 +183,11 @@ export class Parser {
 
 	// --- Expression Parsing ---
 	private parseExpression(precedence: Precedence): ExpressionNode {
-		let isPrefix = true;
 		const prefix = this.prefixParseFns.get(this.currentToken.type);
 		if (!prefix) {
-			isPrefix = false;
-			//throw new Error(`Parser Error: No prefix parse function for ${this.currentToken.type} found.`);
+			throw new Error(`Parser Error: No prefix parse function for ${this.currentToken.type} found.`);
 		}
-		let leftExp: ExpressionNode;
-		if (isPrefix) {
-			leftExp = prefix!();
-		} else {
-			// Check for postfix update expression
-			const updateFn = this.infixParseFns.get(this.currentToken.type);
-			if (updateFn && (this.currentToken.type === "PLUS_PLUS" || this.currentToken.type === "MINUS_MINUS")) {
-				// This part is tricky, we need a left expression that is not there.
-				// Let's adjust how update expressions are parsed.
-				// The logic will be handled inside `parseUpdateExpression` based on context.
-				throw new Error("Postfix operators must follow an expression.");
-			} else {
-				throw new Error(`Parser Error: No prefix parse function for ${this.currentToken.type} found.`);
-			}
-		}
+		let leftExp: ExpressionNode = prefix();
 
 		while (this.peekToken.type !== "SEMICOLON" && precedence < this.peekPrecedence()) {
 			const infix = this.infixParseFns.get(this.peekToken.type);
@@ -253,7 +237,7 @@ export class Parser {
 	private parseUpdateExpression = (left?: ExpressionNode): UpdateExpressionNode => {
 		// Postfix i++
 		if (left) {
-			if (left.type !== "Identifier") {
+			if (left.type !== "Identifier" && left.type !== "MemberExpression") {
 				throw new Error("Parser Error: The left-hand side of a postfix operator must be an identifier.");
 			}
 			return this.createNode("UpdateExpression", {
@@ -293,24 +277,21 @@ export class Parser {
 	private parseGroupedOrTupleExpression = (): ExpressionNode | TupleLiteralNode => {
 		this.advance(); // consume '('
 		if (this.peekToken.type === "RPAREN") {
-			// Empty tuple: ()
-			this.advance();
-			return this.createNode("TupleLiteral", { elements: [] });
+			// this.advance();
+			throw new Error("Parser Error: Empty parentheses is not allowed.");
 		}
 		const exp = this.parseExpression(Precedence.LOWEST);
 		if (this.peekToken.type === "COMMA") {
+			this.advance();
 			const elements: ExpressionNode[] = [exp];
-			while (this.peekToken.type === "COMMA") {
-				this.advance();
-				this.advance();
+			while (this.currentToken.type !== "RPAREN") {
+				if (this.peekToken.type === "COMMA") this.advance();
 				elements.push(this.parseExpression(Precedence.LOWEST));
 			}
 			this.expectPeek("RPAREN");
 			return this.createNode("TupleLiteral", { elements });
 		}
-		if (this.currentToken.type !== "RPAREN") {
-			throw new Error("Parser Error: Expected ')' after expression.");
-		}
+		this.expectPeek("RPAREN");
 		return exp;
 	};
 
@@ -348,9 +329,11 @@ export class Parser {
 			this.advance();
 			return this.createNode("ObjectLiteral", { properties });
 		}
-		this.advance();
+		this.advance(); // consume '{'
 		do {
-			this.advance();
+			if (this.currentToken.type === "RBRACE") break;
+			if (this.currentToken.type === "COMMA") this.advance();
+
 			if (this.currentToken.type !== "IDENTIFIER" && this.currentToken.type !== "STRING") {
 				throw new Error("Parser Error: Invalid key in object literal. Must be an identifier or a string.");
 			}
@@ -447,7 +430,6 @@ export class Parser {
 		const kind = this.currentToken.value as "let" | "const";
 		this.expectPeek("IDENTIFIER"); // consume 'let' or 'const'
 		const identifier: IdentifierNode = this.createNode("Identifier", { name: this.currentToken.value });
-		//this.advance();
 
 		let typeAnnotation: IdentifierNode | undefined;
 		if (this.peekToken.type === "COLON") {
@@ -456,30 +438,24 @@ export class Parser {
 			typeAnnotation = this.parseIdentifier();
 		}
 		const { type } = this.peekToken;
-		if (type !== "EQUALS") {
-			return this.createNode("VariableDeclaration", { kind, identifier, typeAnnotation });
-		}
-
-		this.expectPeek("EQUALS");
-		this.advance();
-
-		const init = this.parseExpression(Precedence.LOWEST);
-
-		if (this.peekToken.type === "SEMICOLON") {
+		let init: ExpressionNode | undefined;
+		if (type === "EQUALS") {
+			this.advance(); // consume '='
 			this.advance();
+			init = this.parseExpression(Precedence.LOWEST);
 		}
+
+		// VariableDeclarationはセミコロンを消費しない。呼び出し元が処理する。
 		return this.createNode("VariableDeclaration", { kind, identifier, typeAnnotation, init });
 	};
 
 	private parseReturnStatement = (): ReturnStatementNode => {
 		this.advance(); // consume 'return'
-		if (this.currentToken.type === "SEMICOLON") {
+		if (this.currentToken.type === "SEMICOLON" || this.currentToken.type === "RBRACE") {
 			return this.createNode("ReturnStatement", {});
 		}
 		const argument = this.parseExpression(Precedence.LOWEST);
-		if (this.peekToken.type === "SEMICOLON") {
-			this.advance();
-		}
+		// ReturnStatementはセミコロンを消費しない。呼び出し元が処理する。
 		return this.createNode("ReturnStatement", { argument });
 	};
 
@@ -530,6 +506,7 @@ export class Parser {
 		this.expectPeek("LPAREN"); // consume 'for'
 		this.advance(); // at start of init
 
+		// 1. Init
 		let init: StatementNode | ExpressionNode | undefined;
 		if (this.currentToken.type !== "SEMICOLON") {
 			if (this.currentToken.type === "KEYWORD" && (this.currentToken.value === "let" || this.currentToken.value === "const")) {
@@ -541,19 +518,24 @@ export class Parser {
 		this.expectPeek("SEMICOLON");
 		this.advance();
 
+		// 2. Test
 		let test: ExpressionNode | undefined;
 		if (this.currentToken.type !== "SEMICOLON") {
-			const test = this.parseExpression(Precedence.LOWEST);
+			test = this.parseExpression(Precedence.LOWEST);
 		}
 		this.expectPeek("SEMICOLON");
-		this.advance();
+		this.advance(); // move to update part
 
+		// 3. Update
 		let update: ExpressionNode | undefined;
+		// あとでどうにかする
+		// @ts-ignore
 		if (this.currentToken.type !== "RPAREN") {
 			update = this.parseExpression(Precedence.LOWEST);
 		}
 		this.expectPeek("RPAREN");
 
+		// 4. Body
 		let body: StatementNode | null;
 		if (this.peekToken.type === "LBRACE") {
 			this.expectPeek("LBRACE");
@@ -602,27 +584,32 @@ export class Parser {
 				this.advance();
 				test = this.parseExpression(Precedence.LOWEST);
 			} else if (this.currentToken.type === "KEYWORD" && this.currentToken.value === "default") {
-				// test remains null for default
-				this.advance();
+				// test is null for default
+				// @ts-ignore
+			} else if (this.currentToken.type === "RBRACE") {
+				// RBRACEに到達した場合など
+				break;
 			} else {
-				throw new Error(`Parser Error: Expected 'case' or 'default', got ${this.currentToken.type}`);
+				throw new Error(`Parser Error: Expected 'case', 'default' or '}', got ${this.currentToken.type} instead.`);
 			}
-
 			this.expectPeek("COLON");
 			this.advance();
 
 			const consequent: StatementNode[] = [];
-			// TODO: あとでどうにかする
 			// @ts-ignore
 			while (this.currentToken.type !== "RBRACE" && !(this.currentToken.type === "KEYWORD" && (this.currentToken.value === "case" || this.currentToken.value === "default"))) {
 				const stmt = this.parseStatement();
-				if (stmt) consequent.push(stmt);
-				this.advance();
+				if (stmt && stmt.type !== "EmptyStatement") consequent.push(stmt);
+				// The main loop in parse() will advance, so we don't do it here to avoid skipping tokens.
+				// However, if the statement doesn't consume the token (like break), we need to advance.
+				// @ts-ignore
+				if (this.currentToken.type !== "RBRACE") {
+					this.advance();
+				}
 			}
+
 			cases.push(this.createNode("SwitchCase", { test, consequent }));
 		}
-		// expectPeek will consume the RBRACE
-		// this.expectPeek("RBRACE");
 		return this.createNode("SwitchStatement", { discriminant, cases });
 	};
 
@@ -632,20 +619,50 @@ export class Parser {
 		this.expectPeek("LPAREN");
 
 		// Parse parameters
-		const params: IdentifierNode[] = [];
+		const params: { name: IdentifierNode; typeAnnotation?: IdentifierNode }[] = [];
 		if (this.peekToken.type !== "RPAREN") {
-			this.advance();
-			do {
-				this.advance();
-				params.push(this.parseIdentifier());
-			} while (this.peekToken.type === "COMMA");
+			this.advance(); // Move to first param
+			// 1. 最初のパラメータをパース
+			let paramName = this.parseIdentifier();
+			let typeAnnotation: IdentifierNode | undefined;
+			if (this.peekToken.type === "COLON") {
+				this.advance(); // consume IDENTIFIER
+				this.advance(); // consume ':'
+				typeAnnotation = this.parseIdentifier();
+			}
+			params.push({ name: paramName, typeAnnotation });
+
+			// 2. 2つ目以降のパラメータをパース (カンマがある限り)
+			while (this.peekToken.type === "COMMA") {
+				this.advance(); // consume the last token of the previous parameter (its name or type)
+				this.advance(); // consume the COMMA
+
+				paramName = this.parseIdentifier();
+				typeAnnotation = undefined;
+				// TODO: あとでどうにかする
+				// @ts-ignore
+				if (this.peekToken.type === "COLON") {
+					this.advance(); // consume IDENTIFIER
+					this.advance(); // consume ':'
+					typeAnnotation = this.parseIdentifier();
+				}
+				params.push({ name: paramName, typeAnnotation });
+			}
 		}
 		this.expectPeek("RPAREN");
+
+		// Parse return type
+		let returnType: IdentifierNode | undefined;
+		if (this.peekToken.type === "COLON") {
+			this.advance(); // consume ')'
+			this.advance(); // consume ':'
+			returnType = this.parseIdentifier();
+		}
 
 		this.expectPeek("LBRACE");
 		const body = this.parseBlockStatement();
 
-		return this.createNode("FunctionDeclaration", { name, params, body });
+		return this.createNode("FunctionDeclaration", { name, params, body, returnType });
 	};
 
 	private parseTryStatement = (): TryStatementNode => {
@@ -680,9 +697,7 @@ export class Parser {
 
 	private parseExpressionStatement = (): ExpressionStatementNode => {
 		const expression = this.parseExpression(Precedence.LOWEST);
-		if (this.peekToken.type === "SEMICOLON") {
-			this.advance();
-		}
+		// ExpressionStatementはセミコロンを消費しない。呼び出し元が処理する。
 		return this.createNode("ExpressionStatement", { expression });
 	};
 
@@ -698,6 +713,10 @@ export class Parser {
 			const stmt = this.parseStatement();
 			if (stmt) {
 				program.body.push(stmt);
+			}
+			// セミコロンで終わる文の場合、ここでセミコロンを消費
+			if (this.currentToken.type !== "RBRACE" && this.peekToken.type === "SEMICOLON") {
+				this.advance();
 			}
 			this.advance();
 		}

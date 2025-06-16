@@ -97,6 +97,9 @@ export class SnowFallVM {
 					case OpCode.POP:
 						this.stack.pop();
 						break;
+					case OpCode.DUP:
+						this.stack.push(this.stack[this.stack.length - 1]);
+						break;
 
 					case OpCode.DEFINE_GLOBAL: {
 						const name = this.readConstant();
@@ -260,8 +263,7 @@ export class SnowFallVM {
 
 					case OpCode.NEGATE:
 						const value = this.stack.pop();
-						if (typeof value === "number") this.stack.push(-value);
-						else this.stack.push(!value);
+						this.stack.push(!value);
 						break;
 
 					case OpCode.JUMP: {

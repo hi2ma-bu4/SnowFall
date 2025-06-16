@@ -7,6 +7,9 @@ export enum OpCode {
 	PUSH_TRUE,
 	PUSH_FALSE,
 
+	// スタック操作
+	DUP, // スタックトップを複製
+
 	// 算術演算
 	ADD,
 	SUBTRACT,

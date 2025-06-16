@@ -42,29 +42,32 @@ class SymbolTable {
 	public store: Map<string, SymbolValue> = new Map();
 	public parent?: SymbolTable;
 	public localCount = 0;
+	private parentLocalCount = 0;
 
 	constructor(parent?: SymbolTable) {
 		this.parent = parent;
+		if (parent) {
+			this.parentLocalCount = parent.parentLocalCount + parent.localCount;
+		}
 	}
 
 	define(name: string, depth: number, isConst: boolean): SymbolValue {
-		const symbol = new SymbolValue(name, depth, this.localCount++, isConst);
+		const index = this.parentLocalCount + this.localCount;
+		const symbol = new SymbolValue(name, depth, index, isConst);
 		this.store.set(name, symbol);
+		this.localCount++;
 		return symbol;
 	}
 
-	resolve(name: string): { symbol: SymbolValue; isLocal: boolean } | null {
+	resolve(name: string): SymbolValue | null {
 		const symbol = this.store.get(name);
 		if (symbol) {
-			return { symbol, isLocal: true };
+			return symbol;
 		}
 		if (this.parent) {
-			const resolved = this.parent.resolve(name);
-			if (resolved) {
-				return { ...resolved, isLocal: false };
-			}
+			return this.parent.resolve(name);
 		}
-		return null; // Assumed to be global
+		return null;
 	}
 }
 
@@ -91,15 +94,37 @@ export class Compiler {
 		this.symbolTable = new SymbolTable(parent?.symbolTable);
 		this.scopeDepth = parent ? parent.scopeDepth + 1 : 0;
 
-		const funcName = ast.type === "FunctionDeclaration" ? (ast as FunctionDeclarationNode).name.name : "main";
-		const arity = ast.type === "FunctionDeclaration" ? (ast as FunctionDeclarationNode).params.length : 0;
+		const isFunction = ast.type === "FunctionDeclaration";
+		const funcNode = isFunction ? (ast as FunctionDeclarationNode) : null;
+		const funcName = isFunction ? funcNode!.name.name : "main";
+		const arity = isFunction ? funcNode!.params.length : 0;
 
 		this.compiledFunction = { name: funcName, arity, chunk: { code: [], constants: [], lines: [] } };
 
-		// For functions, define params in symbol table
-		if (ast.type === "FunctionDeclaration") {
+		// Reserve stack slot 0 for the function/script itself.
+		if (isFunction) {
+			this.symbolTable.define(funcName, this.scopeDepth, true);
+		} else {
+			this.symbolTable.define("main", this.scopeDepth, true);
+		}
+
+		// For functions, define params in symbol table and add type checks
+		if (isFunction) {
 			// Params are not const by default
-			(ast as FunctionDeclarationNode).params.forEach((p) => this.symbolTable.define(p.name, this.scopeDepth, false));
+			funcNode!.params.forEach((p, index) => {
+				// Define param in symbol table
+				const paramSymbol = this.symbolTable.define(p.name.name, this.scopeDepth, false);
+
+				// Add type check if annotation exists
+				if (p.typeAnnotation) {
+					const typeName = p.typeAnnotation.name;
+					if (typeName.toLowerCase() !== "any") {
+						this.emitBytes(OpCode.GET_LOCAL, paramSymbol.index); // Get the parameter's value
+						this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
+						this.emit(OpCode.POP); // Pop the value after check, as it's not needed on the stack
+					}
+				}
+			});
 		}
 	}
 
@@ -153,9 +178,14 @@ export class Compiler {
 	}
 	private endScope() {
 		const popCount = this.symbolTable.localCount;
-		for (let i = 0; i < popCount; i++) {
-			this.emit(OpCode.POP);
+		// Don't pop locals if they are returned
+		const lastOp = this.currentChunk().code[this.currentChunk().code.length - 1];
+		if (lastOp !== OpCode.RETURN) {
+			for (let i = 0; i < popCount; i++) {
+				this.emit(OpCode.POP);
+			}
 		}
+
 		this.scopeDepth--;
 		if (this.symbolTable.parent) {
 			this.symbolTable = this.symbolTable.parent;
@@ -218,6 +248,10 @@ export class Compiler {
 				this.compileBreakStatement(node as BreakStatementNode);
 				break;
 			case "FunctionDeclaration":
+				if (this.ast.type === "FunctionDeclaration" && node === this.ast) {
+					this.compileStatements((node as FunctionDeclarationNode).body.body);
+					break;
+				}
 				this.compileFunctionDeclaration(node as FunctionDeclarationNode);
 				break;
 			case "ReturnStatement":
@@ -268,6 +302,7 @@ export class Compiler {
 		if (node.typeAnnotation) {
 			const typeName = node.typeAnnotation.name;
 			if (typeName.toLowerCase() !== "any") {
+				this.emit(OpCode.DUP);
 				this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
 			}
 		}
@@ -287,10 +322,10 @@ export class Compiler {
 			return;
 		}
 
-		const resolution = this.symbolTable.resolve(node.name);
-		if (resolution) {
+		const symbol = this.symbolTable.resolve(node.name);
+		if (symbol) {
 			// It's a local variable
-			this.emitBytes(OpCode.GET_LOCAL, resolution.symbol.index);
+			this.emitBytes(OpCode.GET_LOCAL, symbol.index);
 		} else {
 			// Assume it's a global
 			this.emitBytes(OpCode.GET_GLOBAL, this.addConstant(node.name));
@@ -301,12 +336,12 @@ export class Compiler {
 		this.compileNode(node.right);
 		if (node.left.type === "Identifier") {
 			const name = (node.left as IdentifierNode).name;
-			const resolution = this.symbolTable.resolve(name);
-			if (resolution) {
-				if (resolution.symbol.isConst) {
+			const symbol = this.symbolTable.resolve(name);
+			if (symbol) {
+				if (symbol.isConst) {
 					throw new Error(`Compiler Error: Cannot assign to constant variable '${name}'.`);
 				}
-				this.emitBytes(OpCode.SET_LOCAL, resolution.symbol.index);
+				this.emitBytes(OpCode.SET_LOCAL, symbol.index);
 			} else {
 				this.emitBytes(OpCode.SET_GLOBAL, this.addConstant(name));
 			}
@@ -322,30 +357,34 @@ export class Compiler {
 
 	private compileUpdateExpression(node: UpdateExpressionNode): void {
 		const { argument, operator, prefix } = node;
-		const resolution = this.symbolTable.resolve(argument.name);
 
-		// ★ 修正: ローカル変数かグローバル変数かを判断して処理を分岐
-		const isLocal = resolution !== null;
+		if (argument.type !== "Identifier") {
+			// In the future, this could be extended to support MemberExpression (e.g., obj.prop++)
+			throw new Error("Compiler Error: Update expressions currently only support identifiers.");
+		}
+		const symbol = this.symbolTable.resolve(argument.name);
 
-		if (isLocal && resolution.symbol.isConst) {
+		// ローカル変数かグローバル変数かを判断して処理を分岐
+		const isLocal = !!symbol;
+
+		if (isLocal && symbol.isConst) {
 			throw new Error(`Compiler Error: Cannot assign to constant variable '${argument.name}'.`);
 		}
 
 		// 変数の種類に応じて適切なオペコードと引数を設定
 		const getOp = isLocal ? OpCode.GET_LOCAL : OpCode.GET_GLOBAL;
-		const getArg = isLocal ? resolution!.symbol.index : this.addConstant(argument.name);
+		const getArg = isLocal ? symbol.index : this.addConstant(argument.name);
 		const setOp = isLocal ? OpCode.SET_LOCAL : OpCode.SET_GLOBAL;
-		const setArg = isLocal ? resolution!.symbol.index : this.addConstant(argument.name);
+		const setArg = isLocal ? symbol.index : this.addConstant(argument.name);
 
 		// 1. 変数の現在の値を取得してスタックにプッシュ
 		this.emitBytes(getOp, getArg);
 
 		// 2. ポストフィックス (i++) の場合、インクリメント前の値をスタックに残すため、
-		//    再度値を取得してプッシュする
+		//    値を取得してプッシュする
 		if (!prefix) {
 			this.emitBytes(getOp, getArg);
 		}
-
 		// 3. インクリメント/デクリメントを実行
 		this.emitConstant(1);
 		this.emit(operator === "++" ? OpCode.ADD : OpCode.SUBTRACT);
@@ -354,11 +393,7 @@ export class Compiler {
 		this.emitBytes(setOp, setArg);
 
 		// 5. 式としての評価値をスタックトップに残す
-		if (prefix) {
-			// プレフィックス (++i) の場合、SET命令の結果（新しい値）が既にスタックトップにあるので何もしない
-		} else {
-			// ポストフィックス (i++) の場合、スタックトップは新しい値なのでPOPし、
-			// スタックの2番目にあった古い値を評価結果として残す
+		if (!prefix) {
 			this.emit(OpCode.POP);
 		}
 	}
@@ -393,23 +428,33 @@ export class Compiler {
 
 		this.compileNode(node.consequence);
 
-		const jumpToEnd = this.emitJump(OpCode.JUMP);
-		this.patchJump(jumpIfFalse);
-		this.emit(OpCode.POP); // Pop test result if it was false
-
 		if (node.alternate) {
+			const jumpToEnd = this.emitJump(OpCode.JUMP);
+			this.patchJump(jumpIfFalse);
+			this.emit(OpCode.POP); // Pop test result if it was false
 			this.compileNode(node.alternate);
+			this.patchJump(jumpToEnd);
+		} else {
+			this.patchJump(jumpIfFalse);
+			this.emit(OpCode.POP); // Pop test result if it was false
 		}
-		this.patchJump(jumpToEnd);
 	}
 
 	private compileForStatement(node: ForStatementNode): void {
 		this.beginScope();
-		if (node.init) this.compileNode(node.init);
+		// 1. Init
+		if (node.init) {
+			this.compileNode(node.init);
+			// variable declaration produces no value on stack, expression does.
+			if (node.init.type !== "VariableDeclaration") {
+				this.emit(OpCode.POP);
+			}
+		}
 
 		const loopStart = this.currentChunk().code.length;
 		this.loopContext.push({ loopStart, exitJumps: [] });
 
+		// 2. Test
 		let exitJump = -1;
 		if (node.test) {
 			this.compileNode(node.test);
@@ -417,8 +462,10 @@ export class Compiler {
 			this.emit(OpCode.POP); // Pop test result
 		}
 
+		// 3. Body
 		this.compileNode(node.body);
 
+		// 4. Update
 		if (node.update) {
 			this.compileNode(node.update);
 			this.emit(OpCode.POP); // Pop update expression result
@@ -430,6 +477,7 @@ export class Compiler {
 			this.patchJump(exitJump);
 			this.emit(OpCode.POP); // Pop the condition result
 		}
+
 		const currentLoop = this.loopContext.pop()!;
 		currentLoop.exitJumps.forEach((offset) => this.patchJump(offset));
 
@@ -459,35 +507,51 @@ export class Compiler {
 		this.compileNode(node.discriminant);
 		this.loopContext.push({ loopStart: -1, exitJumps: [] }); // Use loop context for breaks
 
-		const caseJumps: number[] = [];
-		const caseEnds: number[] = [];
+		const defaultCase = node.cases.find((c) => c.test === null);
+		const caseFailJumps: number[] = [];
+
+		let skipCompile = false;
 
 		for (const switchCase of node.cases) {
-			if (switchCase.test) {
-				// This is a 'case'
-				this.emitBytes(OpCode.GET_LOCAL, this.symbolTable.localCount); // Get discriminant
+			if (switchCase.test === null) {
+				continue;
+			}
+
+			if (caseFailJumps.length > 0) {
+				this.patchJump(caseFailJumps.pop()!);
+				this.emit(OpCode.POP);
+			}
+
+			if (!skipCompile) {
+				this.emit(OpCode.DUP);
 				this.compileNode(switchCase.test);
 				this.emit(OpCode.EQUAL);
-				const nextCaseJump = this.emitJump(OpCode.JUMP_IF_FALSE);
-				this.emit(OpCode.POP); // Pop comparison result
+			}
 
-				this.compileStatements(switchCase.consequent);
-				caseEnds.push(this.emitJump(OpCode.JUMP));
+			const failJump = this.emitJump(OpCode.JUMP_IF_FALSE);
+			caseFailJumps.push(failJump);
 
-				this.patchJump(nextCaseJump);
-				this.emit(OpCode.POP); // Pop comparison result
+			this.emit(OpCode.POP); // Pop comparison result (true)
+			this.compileStatements(switchCase.consequent);
+			skipCompile = false;
+			const lastType = switchCase.consequent[switchCase.consequent.length - 1].type;
+			if (lastType !== "BreakStatement" && lastType !== "ReturnStatement") {
+				skipCompile = true;
 			}
 		}
 
-		// Handle default case last
-		const defaultCase = node.cases.find((c) => c.test === null);
+		const jumpOverDefault = this.emitJump(OpCode.JUMP);
+
+		if (caseFailJumps.length > 0) {
+			this.patchJump(caseFailJumps.pop()!);
+			this.emit(OpCode.POP);
+		}
+
 		if (defaultCase) {
 			this.compileStatements(defaultCase.consequent);
 		}
 
-		// Patch all jumps to the end of their respective cases
-		caseEnds.forEach((offset) => this.patchJump(offset));
-		// Patch all break statements
+		this.patchJump(jumpOverDefault);
 		const currentLoop = this.loopContext.pop()!;
 		currentLoop.exitJumps.forEach((offset) => this.patchJump(offset));
 
@@ -522,6 +586,20 @@ export class Compiler {
 		} else {
 			this.emit(OpCode.PUSH_NULL);
 		}
+
+		// Add return type check if the current compilation context is a function with a return type
+		if (this.ast.type === "FunctionDeclaration") {
+			const funcNode = this.ast as FunctionDeclarationNode;
+			if (funcNode.returnType) {
+				const typeName = funcNode.returnType.name;
+				if (typeName.toLowerCase() !== "any") {
+					// The return value is on top of the stack. CHECK_TYPE will peek at it.
+					this.emit(OpCode.DUP);
+					this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
+				}
+			}
+		}
+
 		this.emit(OpCode.RETURN);
 	}
 
@@ -541,22 +619,16 @@ export class Compiler {
 	}
 
 	private compileUnaryExpression(node: UnaryExpressionNode): void {
-		this.compileNode(node.right);
 		switch (node.operator) {
 			case "!":
+				this.compileNode(node.right);
 				this.emit(OpCode.NEGATE);
 				break;
 			case "-":
-				// This is a conceptual issue in the original code. Unary minus should be handled differently.
-				// For simplicity, we can treat it as `0 - X`.
+				// Implement as `0 - expression`
 				this.emitConstant(0);
-				this.emit(OpCode.ADD); // `X + 0`
-				this.emit(OpCode.SUBTRACT); // then subtract. A bit weird.
-				// A dedicated NEGATE_NUMBER opcode would be better. For now, let's keep it simple.
-				// Correct approach: compile 0, then compile right, then SUB.
-				// This should be: `emitConstant(0)`, `compileNode(node.right)`, `emit(OpCode.SUBTRACT)`
-				// But let's assume a simple numeric negation. Let VM handle it.
-				this.emit(OpCode.NEGATE); // We'll make NEGATE smarter in the VM.
+				this.compileNode(node.right);
+				this.emit(OpCode.SUBTRACT);
 				break; // Conceptual: 0 - X
 			default:
 				throw new Error(`Compiler Error: Unknown unary operator ${node.operator}`);
@@ -582,7 +654,9 @@ export class Compiler {
 				case "/":
 					result = rightVal !== 0 ? leftVal / rightVal : null;
 					break;
-				// 他の演算子も同様に追加可能
+				case "%":
+					result = rightVal !== 0 ? leftVal % rightVal : null;
+					break;
 			}
 			if (result !== null) {
 				this.emitConstant(result);

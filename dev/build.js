@@ -10,6 +10,8 @@ const { execSync } = require("child_process");
 const { rollup } = require("rollup");
 const dts = require("rollup-plugin-dts").default;
 
+const checkIllegalStrings = require("./build/checkIllegalStrings");
+
 const script_name = "SnowFall";
 
 const baseDir = path.join(__dirname, "..");
@@ -118,6 +120,10 @@ async function minifyCode() {
 			console.log("🧹 typesTmpリセット中...");
 			prepareDir(typesTmpDir);
 		}
+
+		console.log("🌵 違法文字列を検出中...");
+		checkIllegalStrings(baseDir);
+		console.log("┗✅ 違法文字列の検出完了！");
 	} catch (e) {
 		console.error("エラーが発生しました:", e.message);
 		process.exit(1);

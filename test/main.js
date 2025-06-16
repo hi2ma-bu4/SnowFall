@@ -64,191 +64,182 @@ document.addEventListener("keydown", function (ev) {
 	e.setRangeText(v.join("\n"), start, end, "select");
 });
 
+// functionのreturnを動作させる
+// 型定義は持続させる&undefinedはどの型でも許容する
+// TODO: 配列、連想配列、タプルは独自型を作成
+
 const DEFAULT_CODE = `
-let a = 1;
-let b = 2;
-let c = 3;
-let count = 0;
-let evenCount = 0;
-let oddCount = 0;
-let primeCount = 0;
-let msg = "init";
-let temp = 0;
+// 定数宣言
+const maxNumber:number = 50;
+const greet:string = "Hello";
+const repeatStr:string = "ha";
 
-print("Start program.");
+// 変数宣言
+let count:number = 0;
+let message:string = "";
+let result:boolean = false;
 
-if (a < b) {
-  print("a is less than b.");
-}
-if (b < c) {
-  print("b is less than c.");
-}
-if (c > a) {
-  print("c is greater than a.");
-}
+// print基本
+print(greet);
+print(repeatStr * 3); // "hahaha"
 
-let n1 = 2;
-let isPrime1 = true;
-if (n1 % 2 == 0 && n1 != 2) {
-  isPrime1 = false;
-}
-if (isPrime1) {
-  primeCount = primeCount + 1;
-  print("2 is prime.");
+// 関数：文字列を繰り返して返す
+function repeatStrFunc(s, times) {
+  let result:string = "";
+  for (let i=0; i<times; i=i+1) {
+    result = result + s;
+  }
+  return result;
 }
 
-let n2 = 3;
-let isPrime2 = true;
-if (n2 % 2 == 0 && n2 != 2) {
-  isPrime2 = false;
-}
-if (isPrime2) {
-  primeCount = primeCount + 1;
-  print("3 is prime.");
-}
 
-let n3 = 4;
-let isPrime3 = true;
-if (n3 % 2 == 0 && n3 != 2) {
-  isPrime3 = false;
-}
-if (isPrime3) {
-  primeCount = primeCount + 1;
-  print("4 is prime.");
+// switch文の利用例
+let grade:string = "B";
+switch(grade) {
+  case "A":
+    print("Excellent!");
+    break;
+  case "B":
+    print("Good job.");
+    break;
+  case "C":
+    print("Not bad.");
+    break;
+  default:
+    print("Try harder.");
 }
 
-let n4 = 5;
-let isPrime4 = true;
-if (n4 % 2 == 0 && n4 != 2) {
-  isPrime4 = false;
-}
-if (isPrime4) {
-  primeCount = primeCount + 1;
-  print("5 is prime.");
-}
+// 文字列リピートを使った出力
+print(repeatStrFunc("ha", 5));
 
-let value1 = 10;
-if (value1 % 2 == 0) {
-  evenCount = evenCount + 1;
-  print("10 is even.");
-} else {
-  oddCount = oddCount + 1;
-  print("10 is odd.");
+// whileループ例
+let i:number = 0;
+while (i < 10) {
+  if (i % 2 == 0) print("Even number: " + i);
+  i = i + 1;
 }
 
-let value2 = 13;
-if (value2 % 2 == 0) {
-  evenCount = evenCount + 1;
-  print("13 is even.");
-} else {
-  oddCount = oddCount + 1;
-  print("13 is odd.");
+
+// 複雑な文字列処理
+let base:string = "foo";
+let repeated:string = base * 3; // "foofoofoo"
+print("Repeated string: " + repeated);
+
+// 文字列のswitch
+let input:string = "hello";
+switch(input) {
+  case "hello":
+    print("Hi there!");
+    break;
+  case "bye":
+    print("Goodbye!");
+    break;
+  default:
+    print("Unknown input");
 }
 
-let value3 = 18;
-if (value3 % 2 == 0) {
-  evenCount = evenCount + 1;
-  print("18 is even.");
-} else {
-  oddCount = oddCount + 1;
-  print("18 is odd.");
+// 関数の入れ子呼び出し
+let finalStr = repeatStrFunc(repeatStrFunc("ab", 2), 3);
+print(finalStr); // "abababababab"
+
+// 文字列と数値の複合
+let val1:number = 5;
+let val2:number = 10;
+let sum:number = val1 + val2;
+print("Sum: " + sum);
+
+// 400行までに満たすため、似た処理を展開
+
+// ここから同様のパターンを繰り返し
+
+let j:number = 0;
+while (j < 20) {
+  if (j % 3 == 0) print("Divisible by 3: " + j);
+  j = j + 1;
 }
 
-let status = "ok";
-if (status == "ok") {
-  print("Status is ok.");
-}
-if (status == "fail") {
-  print("Status is fail.");
-}
-
-let title = "report";
-print("Title: " + title);
-
-let x = 100;
-let y = 200;
-let z = 300;
-let w = 400;
-let v = 500;
-
-print("Values:");
-print("x = " + x);
-print("y = " + y);
-print("z = " + z);
-print("w = " + w);
-print("v = " + v);
-
-if (x < y) {
-  print("x < y");
-}
-if (y < z) {
-  print("y < z");
-}
-if (z < w) {
-  print("z < w");
-}
-if (w < v) {
-  print("w < v");
+for (let k=0; k<15; k=k+1) {
+  switch(k % 4) {
+    case 0: print(k + " mod 4 == 0"); break;
+    case 1: print(k + " mod 4 == 1"); break;
+    case 2: print(k + " mod 4 == 2"); break;
+    case 3: print(k + " mod 4 == 3"); break;
+  }
 }
 
-let name = "Alice";
-let message = "Hello";
-if (name == "Alice") {
-  print("Hi, Alice!");
+// if の1行記法続き
+if (sum > 10) print("Sum is big.");
+if (sum <= 10) print("Sum is small.");
+
+// 関数で文字列複数回繰り返し
+print(repeatStrFunc("xyz", 4));
+
+// 型付き配列（擬似的に）
+let arr1:number = 1;
+let arr2:number = 2;
+let arr3:number = 3;
+let arr4:number = 4;
+let arr5:number = 5;
+
+print("Array elements:");
+print(arr1);
+print(arr2);
+print(arr3);
+print(arr4);
+print(arr5);
+
+// さらに関数の呼び出し例
+function greetUser(name) {
+  print("Hello, " + name + "!");
 }
-if (name == "Bob") {
-  print("Hi, Bob!");
+
+greetUser("ChatGPT");
+greetUser("User");
+
+// もう少し複雑なループ
+for (let m=0; m<5; m=m+1) {
+  for (let n=0; n<3; n=n+1) {
+    print("m: " + m + ", n: " + n);
+  }
 }
 
-let total = evenCount + oddCount;
-print("Even count: " + evenCount);
-print("Odd count: " + oddCount);
-print("Total count: " + total);
+// switch 文で曜日判定（例）
+let day:number = 3;
+switch(day) {
+  case 1: print("Monday"); break;
+  case 2: print("Tuesday"); break;
+  case 3: print("Wednesday"); break;
+  case 4: print("Thursday"); break;
+  case 5: print("Friday"); break;
+  case 6: print("Saturday"); break;
+  case 7: print("Sunday"); break;
+  default: print("Invalid day");
+}
 
-print("Prime count: " + primeCount);
+// whileでカウントダウン
+let countdown:number = 10;
+while (countdown > 0) {
+  print("Countdown: " + countdown);
+  countdown = countdown - 1;
+}
 
-let a1 = 10;
-let a2 = 20;
-let a3 = 30;
-let a4 = 40;
-let a5 = 50;
-let a6 = 60;
-let a7 = 70;
-let a8 = 80;
-let a9 = 90;
-let a10 = 100;
+if (countdown == 0) print("Blast off!");
 
-print("a1 = " + a1);
-print("a2 = " + a2);
-print("a3 = " + a3);
-print("a4 = " + a4);
-print("a5 = " + a5);
-print("a6 = " + a6);
-print("a7 = " + a7);
-print("a8 = " + a8);
-print("a9 = " + a9);
-print("a10 = " + a10);
+// 文字列連結とリピートの複合
+let repeatA:string = "A" * 5;
+let repeatB:string = "B" * 3;
+print(repeatA + repeatB); // "AAAAABBB"
 
-if (a1 < a2) print("a1 < a2");
-if (a2 < a3) print("a2 < a3");
-if (a3 < a4) print("a3 < a4");
-if (a4 < a5) print("a4 < a5");
-if (a5 < a6) print("a5 < a6");
-if (a6 < a7) print("a6 < a7");
-if (a7 < a8) print("a7 < a8");
-if (a8 < a9) print("a8 < a9");
-if (a9 < a10) print("a9 < a10");
+// 型付き変数で数値演算
+let baseNum:number = 2;
+let power:number = 3;
+let powerResult:number = 1;
+for (let p = 0; p < power; p = p + 1) {
+  powerResult = powerResult * baseNum;
+}
+print("2^3 = " + powerResult);
 
-let s1 = "A";
-let s2 = "B";
-let s3 = "C";
-
-if (s1 == "A") print("Got A");
-if (s2 == "B") print("Got B");
-if (s3 == "C") print("Got C");
-
-print("Done!");
-
+print("End of program.");
 `;
 
 jasc.on("DOMContentLoaded", () => {
@@ -280,6 +271,9 @@ jasc.on("DOMContentLoaded", () => {
 					const line = args.map(String).join(" ");
 					outputHtml += line + "\n";
 					//console.log(...args); // 念のためコンソールにも
+				},
+				clog(...args) {
+					console.log("[clog]", ...args);
 				},
 			},
 			output: {

@@ -125,8 +125,6 @@ var _compressor = require("../util/compressor");
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
-function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
-function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { (0, _defineProperty2["default"])(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 var SymbolValue = (0, _createClass2["default"])(function SymbolValue(name, depth, index, isConst) {
   (0, _classCallCheck2["default"])(this, SymbolValue);
   this.name = name;
@@ -139,13 +137,19 @@ var SymbolTable = function () {
     (0, _classCallCheck2["default"])(this, SymbolTable);
     (0, _defineProperty2["default"])(this, "store", new Map());
     (0, _defineProperty2["default"])(this, "localCount", 0);
+    (0, _defineProperty2["default"])(this, "parentLocalCount", 0);
     this.parent = parent;
+    if (parent) {
+      this.parentLocalCount = parent.parentLocalCount + parent.localCount;
+    }
   }
   return (0, _createClass2["default"])(SymbolTable, [{
     key: "define",
     value: function define(name, depth, isConst) {
-      var symbol = new SymbolValue(name, depth, this.localCount++, isConst);
+      var index = this.parentLocalCount + this.localCount;
+      var symbol = new SymbolValue(name, depth, index, isConst);
       this.store.set(name, symbol);
+      this.localCount++;
       return symbol;
     }
   }, {
@@ -153,18 +157,10 @@ var SymbolTable = function () {
     value: function resolve(name) {
       var symbol = this.store.get(name);
       if (symbol) {
-        return {
-          symbol: symbol,
-          isLocal: true
-        };
+        return symbol;
       }
       if (this.parent) {
-        var resolved = this.parent.resolve(name);
-        if (resolved) {
-          return _objectSpread(_objectSpread({}, resolved), {}, {
-            isLocal: false
-          });
-        }
+        return this.parent.resolve(name);
       }
       return null;
     }
@@ -184,8 +180,10 @@ var Compiler = exports.Compiler = function () {
     this.parentCompiler = parent;
     this.symbolTable = new SymbolTable(parent === null || parent === void 0 ? void 0 : parent.symbolTable);
     this.scopeDepth = parent ? parent.scopeDepth + 1 : 0;
-    var funcName = ast.type === "FunctionDeclaration" ? ast.name.name : "main";
-    var arity = ast.type === "FunctionDeclaration" ? ast.params.length : 0;
+    var isFunction = ast.type === "FunctionDeclaration";
+    var funcNode = isFunction ? ast : null;
+    var funcName = isFunction ? funcNode.name.name : "main";
+    var arity = isFunction ? funcNode.params.length : 0;
     this.compiledFunction = {
       name: funcName,
       arity: arity,
@@ -195,9 +193,22 @@ var Compiler = exports.Compiler = function () {
         lines: []
       }
     };
-    if (ast.type === "FunctionDeclaration") {
-      ast.params.forEach(function (p) {
-        return _this.symbolTable.define(p.name, _this.scopeDepth, false);
+    if (isFunction) {
+      this.symbolTable.define(funcName, this.scopeDepth, true);
+    } else {
+      this.symbolTable.define("main", this.scopeDepth, true);
+    }
+    if (isFunction) {
+      funcNode.params.forEach(function (p, index) {
+        var paramSymbol = _this.symbolTable.define(p.name.name, _this.scopeDepth, false);
+        if (p.typeAnnotation) {
+          var typeName = p.typeAnnotation.name;
+          if (typeName.toLowerCase() !== "any") {
+            _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramSymbol.index);
+            _this.emitBytes(_opcodes.OpCode.CHECK_TYPE, _this.addConstant(typeName));
+            _this.emit(_opcodes.OpCode.POP);
+          }
+        }
       });
     }
   }
@@ -274,8 +285,11 @@ var Compiler = exports.Compiler = function () {
     key: "endScope",
     value: function endScope() {
       var popCount = this.symbolTable.localCount;
-      for (var i = 0; i < popCount; i++) {
-        this.emit(_opcodes.OpCode.POP);
+      var lastOp = this.currentChunk().code[this.currentChunk().code.length - 1];
+      if (lastOp !== _opcodes.OpCode.RETURN) {
+        for (var i = 0; i < popCount; i++) {
+          this.emit(_opcodes.OpCode.POP);
+        }
       }
       this.scopeDepth--;
       if (this.symbolTable.parent) {
@@ -339,6 +353,10 @@ var Compiler = exports.Compiler = function () {
           this.compileBreakStatement(node);
           break;
         case "FunctionDeclaration":
+          if (this.ast.type === "FunctionDeclaration" && node === this.ast) {
+            this.compileStatements(node.body.body);
+            break;
+          }
           this.compileFunctionDeclaration(node);
           break;
         case "ReturnStatement":
@@ -392,6 +410,7 @@ var Compiler = exports.Compiler = function () {
       if (node.typeAnnotation) {
         var typeName = node.typeAnnotation.name;
         if (typeName.toLowerCase() !== "any") {
+          this.emit(_opcodes.OpCode.DUP);
           this.emitBytes(_opcodes.OpCode.CHECK_TYPE, this.addConstant(typeName));
         }
       }
@@ -407,9 +426,9 @@ var Compiler = exports.Compiler = function () {
       if (this.settings.builtInFunctions[node.name]) {
         return;
       }
-      var resolution = this.symbolTable.resolve(node.name);
-      if (resolution) {
-        this.emitBytes(_opcodes.OpCode.GET_LOCAL, resolution.symbol.index);
+      var symbol = this.symbolTable.resolve(node.name);
+      if (symbol) {
+        this.emitBytes(_opcodes.OpCode.GET_LOCAL, symbol.index);
       } else {
         this.emitBytes(_opcodes.OpCode.GET_GLOBAL, this.addConstant(node.name));
       }
@@ -420,12 +439,12 @@ var Compiler = exports.Compiler = function () {
       this.compileNode(node.right);
       if (node.left.type === "Identifier") {
         var name = node.left.name;
-        var resolution = this.symbolTable.resolve(name);
-        if (resolution) {
-          if (resolution.symbol.isConst) {
+        var symbol = this.symbolTable.resolve(name);
+        if (symbol) {
+          if (symbol.isConst) {
             throw new Error("Compiler Error: Cannot assign to constant variable '".concat(name, "'."));
           }
-          this.emitBytes(_opcodes.OpCode.SET_LOCAL, resolution.symbol.index);
+          this.emitBytes(_opcodes.OpCode.SET_LOCAL, symbol.index);
         } else {
           this.emitBytes(_opcodes.OpCode.SET_GLOBAL, this.addConstant(name));
         }
@@ -444,15 +463,18 @@ var Compiler = exports.Compiler = function () {
       var argument = node.argument,
         operator = node.operator,
         prefix = node.prefix;
-      var resolution = this.symbolTable.resolve(argument.name);
-      var isLocal = resolution !== null;
-      if (isLocal && resolution.symbol.isConst) {
+      if (argument.type !== "Identifier") {
+        throw new Error("Compiler Error: Update expressions currently only support identifiers.");
+      }
+      var symbol = this.symbolTable.resolve(argument.name);
+      var isLocal = !!symbol;
+      if (isLocal && symbol.isConst) {
         throw new Error("Compiler Error: Cannot assign to constant variable '".concat(argument.name, "'."));
       }
       var getOp = isLocal ? _opcodes.OpCode.GET_LOCAL : _opcodes.OpCode.GET_GLOBAL;
-      var getArg = isLocal ? resolution.symbol.index : this.addConstant(argument.name);
+      var getArg = isLocal ? symbol.index : this.addConstant(argument.name);
       var setOp = isLocal ? _opcodes.OpCode.SET_LOCAL : _opcodes.OpCode.SET_GLOBAL;
-      var setArg = isLocal ? resolution.symbol.index : this.addConstant(argument.name);
+      var setArg = isLocal ? symbol.index : this.addConstant(argument.name);
       this.emitBytes(getOp, getArg);
       if (!prefix) {
         this.emitBytes(getOp, getArg);
@@ -460,7 +482,7 @@ var Compiler = exports.Compiler = function () {
       this.emitConstant(1);
       this.emit(operator === "++" ? _opcodes.OpCode.ADD : _opcodes.OpCode.SUBTRACT);
       this.emitBytes(setOp, setArg);
-      if (prefix) {} else {
+      if (!prefix) {
         this.emit(_opcodes.OpCode.POP);
       }
     }
@@ -501,20 +523,28 @@ var Compiler = exports.Compiler = function () {
       var jumpIfFalse = this.emitJump(_opcodes.OpCode.JUMP_IF_FALSE);
       this.emit(_opcodes.OpCode.POP);
       this.compileNode(node.consequence);
-      var jumpToEnd = this.emitJump(_opcodes.OpCode.JUMP);
-      this.patchJump(jumpIfFalse);
-      this.emit(_opcodes.OpCode.POP);
       if (node.alternate) {
+        var jumpToEnd = this.emitJump(_opcodes.OpCode.JUMP);
+        this.patchJump(jumpIfFalse);
+        this.emit(_opcodes.OpCode.POP);
         this.compileNode(node.alternate);
+        this.patchJump(jumpToEnd);
+      } else {
+        this.patchJump(jumpIfFalse);
+        this.emit(_opcodes.OpCode.POP);
       }
-      this.patchJump(jumpToEnd);
     }
   }, {
     key: "compileForStatement",
     value: function compileForStatement(node) {
       var _this6 = this;
       this.beginScope();
-      if (node.init) this.compileNode(node.init);
+      if (node.init) {
+        this.compileNode(node.init);
+        if (node.init.type !== "VariableDeclaration") {
+          this.emit(_opcodes.OpCode.POP);
+        }
+      }
       var loopStart = this.currentChunk().code.length;
       this.loopContext.push({
         loopStart: loopStart,
@@ -572,23 +602,36 @@ var Compiler = exports.Compiler = function () {
         loopStart: -1,
         exitJumps: []
       });
-      var caseJumps = [];
-      var caseEnds = [];
+      var defaultCase = node.cases.find(function (c) {
+        return c.test === null;
+      });
+      var caseFailJumps = [];
+      var skipCompile = false;
       var _iterator = _createForOfIteratorHelper(node.cases),
         _step;
       try {
         for (_iterator.s(); !(_step = _iterator.n()).done;) {
           var switchCase = _step.value;
-          if (switchCase.test) {
-            this.emitBytes(_opcodes.OpCode.GET_LOCAL, this.symbolTable.localCount);
+          if (switchCase.test === null) {
+            continue;
+          }
+          if (caseFailJumps.length > 0) {
+            this.patchJump(caseFailJumps.pop());
+            this.emit(_opcodes.OpCode.POP);
+          }
+          if (!skipCompile) {
+            this.emit(_opcodes.OpCode.DUP);
             this.compileNode(switchCase.test);
             this.emit(_opcodes.OpCode.EQUAL);
-            var nextCaseJump = this.emitJump(_opcodes.OpCode.JUMP_IF_FALSE);
-            this.emit(_opcodes.OpCode.POP);
-            this.compileStatements(switchCase.consequent);
-            caseEnds.push(this.emitJump(_opcodes.OpCode.JUMP));
-            this.patchJump(nextCaseJump);
-            this.emit(_opcodes.OpCode.POP);
+          }
+          var failJump = this.emitJump(_opcodes.OpCode.JUMP_IF_FALSE);
+          caseFailJumps.push(failJump);
+          this.emit(_opcodes.OpCode.POP);
+          this.compileStatements(switchCase.consequent);
+          skipCompile = false;
+          var lastType = switchCase.consequent[switchCase.consequent.length - 1].type;
+          if (lastType !== "BreakStatement" && lastType !== "ReturnStatement") {
+            skipCompile = true;
           }
         }
       } catch (err) {
@@ -596,15 +639,15 @@ var Compiler = exports.Compiler = function () {
       } finally {
         _iterator.f();
       }
-      var defaultCase = node.cases.find(function (c) {
-        return c.test === null;
-      });
+      var jumpOverDefault = this.emitJump(_opcodes.OpCode.JUMP);
+      if (caseFailJumps.length > 0) {
+        this.patchJump(caseFailJumps.pop());
+        this.emit(_opcodes.OpCode.POP);
+      }
       if (defaultCase) {
         this.compileStatements(defaultCase.consequent);
       }
-      caseEnds.forEach(function (offset) {
-        return _this8.patchJump(offset);
-      });
+      this.patchJump(jumpOverDefault);
       var currentLoop = this.loopContext.pop();
       currentLoop.exitJumps.forEach(function (offset) {
         return _this8.patchJump(offset);
@@ -641,6 +684,16 @@ var Compiler = exports.Compiler = function () {
       } else {
         this.emit(_opcodes.OpCode.PUSH_NULL);
       }
+      if (this.ast.type === "FunctionDeclaration") {
+        var funcNode = this.ast;
+        if (funcNode.returnType) {
+          var typeName = funcNode.returnType.name;
+          if (typeName.toLowerCase() !== "any") {
+            this.emit(_opcodes.OpCode.DUP);
+            this.emitBytes(_opcodes.OpCode.CHECK_TYPE, this.addConstant(typeName));
+          }
+        }
+      }
       this.emit(_opcodes.OpCode.RETURN);
     }
   }, {
@@ -669,16 +722,15 @@ var Compiler = exports.Compiler = function () {
   }, {
     key: "compileUnaryExpression",
     value: function compileUnaryExpression(node) {
-      this.compileNode(node.right);
       switch (node.operator) {
         case "!":
+          this.compileNode(node.right);
           this.emit(_opcodes.OpCode.NEGATE);
           break;
         case "-":
           this.emitConstant(0);
-          this.emit(_opcodes.OpCode.ADD);
+          this.compileNode(node.right);
           this.emit(_opcodes.OpCode.SUBTRACT);
-          this.emit(_opcodes.OpCode.NEGATE);
           break;
         default:
           throw new Error("Compiler Error: Unknown unary operator ".concat(node.operator));
@@ -703,6 +755,9 @@ var Compiler = exports.Compiler = function () {
             break;
           case "/":
             result = rightVal !== 0 ? leftVal / rightVal : null;
+            break;
+          case "%":
+            result = rightVal !== 0 ? leftVal % rightVal : null;
             break;
         }
         if (result !== null) {
@@ -881,10 +936,15 @@ var Lexer = exports.Lexer = function () {
     }
   }, {
     key: "string",
-    value: function string() {
+    value: function string(quoteChar) {
+      var startLine = this.line;
+      var startColumn = this.column;
       this.advance();
       var result = "";
-      while (this.currentChar !== '"' && this.currentChar !== null) {
+      while (this.currentChar !== quoteChar && this.currentChar !== null) {
+        if (this.currentChar === "\n" && quoteChar !== "`") {
+          throw new Error("Lexer Error: Unterminated string at line ".concat(startLine, ", column ").concat(startColumn, "."));
+        }
         result += this.currentChar;
         this.advance();
       }
@@ -913,10 +973,32 @@ var Lexer = exports.Lexer = function () {
       return this.createToken("NUMBER", result);
     }
   }, {
-    key: "skipWhitespace",
-    value: function skipWhitespace() {
-      while (this.currentChar !== null && /\s/.test(this.currentChar)) {
-        this.advance();
+    key: "skipWhitespaceAndComments",
+    value: function skipWhitespaceAndComments() {
+      while (this.currentChar !== null) {
+        if (/\s/.test(this.currentChar)) {
+          this.advance();
+          continue;
+        }
+        if (this.currentChar === "/" && this.peek() === "/") {
+          while (this.currentChar !== "\n" && this.currentChar !== null) {
+            this.advance();
+          }
+          continue;
+        }
+        if (this.currentChar === "/" && this.peek() === "*") {
+          this.advance();
+          this.advance();
+          while (this.currentChar !== null && (this.currentChar !== "*" || this.peek() !== "/")) {
+            this.advance();
+          }
+          if (this.currentChar !== null) {
+            this.advance();
+            this.advance();
+          }
+          continue;
+        }
+        break;
       }
     }
   }, {
@@ -945,12 +1027,12 @@ var Lexer = exports.Lexer = function () {
     value: function tokenize() {
       var tokens = [];
       while (this.currentChar !== null) {
-        if (/\s/.test(this.currentChar)) {
-          this.skipWhitespace();
-          continue;
+        this.skipWhitespaceAndComments();
+        if (this.currentChar === null) {
+          break;
         }
-        if (this.currentChar === '"') {
-          tokens.push(this.string());
+        if (this.currentChar === '"' || this.currentChar === "'" || this.currentChar === "`") {
+          tokens.push(this.string(this.currentChar));
           continue;
         }
         if (/\d/.test(this.currentChar)) {
@@ -1134,7 +1216,7 @@ var Parser = exports.Parser = function () {
     });
     (0, _defineProperty2["default"])(this, "parseUpdateExpression", function (left) {
       if (left) {
-        if (left.type !== "Identifier") {
+        if (left.type !== "Identifier" && left.type !== "MemberExpression") {
           throw new Error("Parser Error: The left-hand side of a postfix operator must be an identifier.");
         }
         return _this.createNode("UpdateExpression", {
@@ -1181,17 +1263,14 @@ var Parser = exports.Parser = function () {
     (0, _defineProperty2["default"])(this, "parseGroupedOrTupleExpression", function () {
       _this.advance();
       if (_this.peekToken.type === "RPAREN") {
-        _this.advance();
-        return _this.createNode("TupleLiteral", {
-          elements: []
-        });
+        throw new Error("Parser Error: Empty parentheses is not allowed.");
       }
       var exp = _this.parseExpression(Precedence.LOWEST);
       if (_this.peekToken.type === "COMMA") {
+        _this.advance();
         var elements = [exp];
-        while (_this.peekToken.type === "COMMA") {
-          _this.advance();
-          _this.advance();
+        while (_this.currentToken.type !== "RPAREN") {
+          if (_this.peekToken.type === "COMMA") _this.advance();
           elements.push(_this.parseExpression(Precedence.LOWEST));
         }
         _this.expectPeek("RPAREN");
@@ -1199,9 +1278,7 @@ var Parser = exports.Parser = function () {
           elements: elements
         });
       }
-      if (_this.currentToken.type !== "RPAREN") {
-        throw new Error("Parser Error: Expected ')' after expression.");
-      }
+      _this.expectPeek("RPAREN");
       return exp;
     });
     (0, _defineProperty2["default"])(this, "parseCallExpression", function (func) {
@@ -1245,7 +1322,8 @@ var Parser = exports.Parser = function () {
       }
       _this.advance();
       do {
-        _this.advance();
+        if (_this.currentToken.type === "RBRACE") break;
+        if (_this.currentToken.type === "COMMA") _this.advance();
         if (_this.currentToken.type !== "IDENTIFIER" && _this.currentToken.type !== "STRING") {
           throw new Error("Parser Error: Invalid key in object literal. Must be an identifier or a string.");
         }
@@ -1297,18 +1375,11 @@ var Parser = exports.Parser = function () {
         typeAnnotation = _this.parseIdentifier();
       }
       var type = _this.peekToken.type;
-      if (type !== "EQUALS") {
-        return _this.createNode("VariableDeclaration", {
-          kind: kind,
-          identifier: identifier,
-          typeAnnotation: typeAnnotation
-        });
-      }
-      _this.expectPeek("EQUALS");
-      _this.advance();
-      var init = _this.parseExpression(Precedence.LOWEST);
-      if (_this.peekToken.type === "SEMICOLON") {
+      var init;
+      if (type === "EQUALS") {
         _this.advance();
+        _this.advance();
+        init = _this.parseExpression(Precedence.LOWEST);
       }
       return _this.createNode("VariableDeclaration", {
         kind: kind,
@@ -1319,13 +1390,10 @@ var Parser = exports.Parser = function () {
     });
     (0, _defineProperty2["default"])(this, "parseReturnStatement", function () {
       _this.advance();
-      if (_this.currentToken.type === "SEMICOLON") {
+      if (_this.currentToken.type === "SEMICOLON" || _this.currentToken.type === "RBRACE") {
         return _this.createNode("ReturnStatement", {});
       }
       var argument = _this.parseExpression(Precedence.LOWEST);
-      if (_this.peekToken.type === "SEMICOLON") {
-        _this.advance();
-      }
       return _this.createNode("ReturnStatement", {
         argument: argument
       });
@@ -1384,7 +1452,7 @@ var Parser = exports.Parser = function () {
       _this.advance();
       var test;
       if (_this.currentToken.type !== "SEMICOLON") {
-        var _test = _this.parseExpression(Precedence.LOWEST);
+        test = _this.parseExpression(Precedence.LOWEST);
       }
       _this.expectPeek("SEMICOLON");
       _this.advance();
@@ -1439,18 +1507,20 @@ var Parser = exports.Parser = function () {
         if (_this.currentToken.type === "KEYWORD" && _this.currentToken.value === "case") {
           _this.advance();
           test = _this.parseExpression(Precedence.LOWEST);
-        } else if (_this.currentToken.type === "KEYWORD" && _this.currentToken.value === "default") {
-          _this.advance();
+        } else if (_this.currentToken.type === "KEYWORD" && _this.currentToken.value === "default") {} else if (_this.currentToken.type === "RBRACE") {
+          break;
         } else {
-          throw new Error("Parser Error: Expected 'case' or 'default', got ".concat(_this.currentToken.type));
+          throw new Error("Parser Error: Expected 'case', 'default' or '}', got ".concat(_this.currentToken.type, " instead."));
         }
         _this.expectPeek("COLON");
         _this.advance();
         var consequent = [];
         while (_this.currentToken.type !== "RBRACE" && !(_this.currentToken.type === "KEYWORD" && (_this.currentToken.value === "case" || _this.currentToken.value === "default"))) {
           var stmt = _this.parseStatement();
-          if (stmt) consequent.push(stmt);
-          _this.advance();
+          if (stmt && stmt.type !== "EmptyStatement") consequent.push(stmt);
+          if (_this.currentToken.type !== "RBRACE") {
+            _this.advance();
+          }
         }
         cases.push(_this.createNode("SwitchCase", {
           test: test,
@@ -1469,18 +1539,47 @@ var Parser = exports.Parser = function () {
       var params = [];
       if (_this.peekToken.type !== "RPAREN") {
         _this.advance();
-        do {
+        var paramName = _this.parseIdentifier();
+        var typeAnnotation;
+        if (_this.peekToken.type === "COLON") {
           _this.advance();
-          params.push(_this.parseIdentifier());
-        } while (_this.peekToken.type === "COMMA");
+          _this.advance();
+          typeAnnotation = _this.parseIdentifier();
+        }
+        params.push({
+          name: paramName,
+          typeAnnotation: typeAnnotation
+        });
+        while (_this.peekToken.type === "COMMA") {
+          _this.advance();
+          _this.advance();
+          paramName = _this.parseIdentifier();
+          typeAnnotation = undefined;
+          if (_this.peekToken.type === "COLON") {
+            _this.advance();
+            _this.advance();
+            typeAnnotation = _this.parseIdentifier();
+          }
+          params.push({
+            name: paramName,
+            typeAnnotation: typeAnnotation
+          });
+        }
       }
       _this.expectPeek("RPAREN");
+      var returnType;
+      if (_this.peekToken.type === "COLON") {
+        _this.advance();
+        _this.advance();
+        returnType = _this.parseIdentifier();
+      }
       _this.expectPeek("LBRACE");
       var body = _this.parseBlockStatement();
       return _this.createNode("FunctionDeclaration", {
         name: name,
         params: params,
-        body: body
+        body: body,
+        returnType: returnType
       });
     });
     (0, _defineProperty2["default"])(this, "parseTryStatement", function () {
@@ -1517,9 +1616,6 @@ var Parser = exports.Parser = function () {
     });
     (0, _defineProperty2["default"])(this, "parseExpressionStatement", function () {
       var expression = _this.parseExpression(Precedence.LOWEST);
-      if (_this.peekToken.type === "SEMICOLON") {
-        _this.advance();
-      }
       return _this.createNode("ExpressionStatement", {
         expression: expression
       });
@@ -1621,22 +1717,11 @@ var Parser = exports.Parser = function () {
   }, {
     key: "parseExpression",
     value: function parseExpression(precedence) {
-      var isPrefix = true;
       var prefix = this.prefixParseFns.get(this.currentToken.type);
       if (!prefix) {
-        isPrefix = false;
+        throw new Error("Parser Error: No prefix parse function for ".concat(this.currentToken.type, " found."));
       }
-      var leftExp;
-      if (isPrefix) {
-        leftExp = prefix();
-      } else {
-        var updateFn = this.infixParseFns.get(this.currentToken.type);
-        if (updateFn && (this.currentToken.type === "PLUS_PLUS" || this.currentToken.type === "MINUS_MINUS")) {
-          throw new Error("Postfix operators must follow an expression.");
-        } else {
-          throw new Error("Parser Error: No prefix parse function for ".concat(this.currentToken.type, " found."));
-        }
-      }
+      var leftExp = prefix();
       while (this.peekToken.type !== "SEMICOLON" && precedence < this.peekPrecedence()) {
         var infix = this.infixParseFns.get(this.peekToken.type);
         if (!infix) {
@@ -1714,6 +1799,9 @@ var Parser = exports.Parser = function () {
         if (stmt) {
           program.body.push(stmt);
         }
+        if (this.currentToken.type !== "RBRACE" && this.peekToken.type === "SEMICOLON") {
+          this.advance();
+        }
         this.advance();
       }
       return program;
@@ -1734,40 +1822,41 @@ var OpCode;
   OpCode[OpCode["PUSH_NULL"] = 1] = "PUSH_NULL";
   OpCode[OpCode["PUSH_TRUE"] = 2] = "PUSH_TRUE";
   OpCode[OpCode["PUSH_FALSE"] = 3] = "PUSH_FALSE";
-  OpCode[OpCode["ADD"] = 4] = "ADD";
-  OpCode[OpCode["SUBTRACT"] = 5] = "SUBTRACT";
-  OpCode[OpCode["MULTIPLY"] = 6] = "MULTIPLY";
-  OpCode[OpCode["DIVIDE"] = 7] = "DIVIDE";
-  OpCode[OpCode["MODULO"] = 8] = "MODULO";
-  OpCode[OpCode["EQUAL"] = 9] = "EQUAL";
-  OpCode[OpCode["NOT_EQUAL"] = 10] = "NOT_EQUAL";
-  OpCode[OpCode["GREATER_THAN"] = 11] = "GREATER_THAN";
-  OpCode[OpCode["GREATER_EQUAL"] = 12] = "GREATER_EQUAL";
-  OpCode[OpCode["LESS_THAN"] = 13] = "LESS_THAN";
-  OpCode[OpCode["LESS_EQUAL"] = 14] = "LESS_EQUAL";
-  OpCode[OpCode["NEGATE"] = 15] = "NEGATE";
-  OpCode[OpCode["BITWISE_AND"] = 16] = "BITWISE_AND";
-  OpCode[OpCode["BITWISE_OR"] = 17] = "BITWISE_OR";
-  OpCode[OpCode["POP"] = 18] = "POP";
-  OpCode[OpCode["DEFINE_GLOBAL"] = 19] = "DEFINE_GLOBAL";
-  OpCode[OpCode["GET_GLOBAL"] = 20] = "GET_GLOBAL";
-  OpCode[OpCode["SET_GLOBAL"] = 21] = "SET_GLOBAL";
-  OpCode[OpCode["GET_LOCAL"] = 22] = "GET_LOCAL";
-  OpCode[OpCode["SET_LOCAL"] = 23] = "SET_LOCAL";
-  OpCode[OpCode["BUILD_ARRAY"] = 24] = "BUILD_ARRAY";
-  OpCode[OpCode["BUILD_OBJECT"] = 25] = "BUILD_OBJECT";
-  OpCode[OpCode["GET_PROPERTY"] = 26] = "GET_PROPERTY";
-  OpCode[OpCode["SET_PROPERTY"] = 27] = "SET_PROPERTY";
-  OpCode[OpCode["JUMP"] = 28] = "JUMP";
-  OpCode[OpCode["JUMP_IF_FALSE"] = 29] = "JUMP_IF_FALSE";
-  OpCode[OpCode["LOOP"] = 30] = "LOOP";
-  OpCode[OpCode["CALL"] = 31] = "CALL";
-  OpCode[OpCode["RETURN"] = 32] = "RETURN";
-  OpCode[OpCode["CALL_BUILTIN"] = 33] = "CALL_BUILTIN";
-  OpCode[OpCode["CHECK_TYPE"] = 34] = "CHECK_TYPE";
-  OpCode[OpCode["SETUP_EXCEPTION"] = 35] = "SETUP_EXCEPTION";
-  OpCode[OpCode["TEARDOWN_EXCEPTION"] = 36] = "TEARDOWN_EXCEPTION";
-  OpCode[OpCode["THROW"] = 37] = "THROW";
+  OpCode[OpCode["DUP"] = 4] = "DUP";
+  OpCode[OpCode["ADD"] = 5] = "ADD";
+  OpCode[OpCode["SUBTRACT"] = 6] = "SUBTRACT";
+  OpCode[OpCode["MULTIPLY"] = 7] = "MULTIPLY";
+  OpCode[OpCode["DIVIDE"] = 8] = "DIVIDE";
+  OpCode[OpCode["MODULO"] = 9] = "MODULO";
+  OpCode[OpCode["EQUAL"] = 10] = "EQUAL";
+  OpCode[OpCode["NOT_EQUAL"] = 11] = "NOT_EQUAL";
+  OpCode[OpCode["GREATER_THAN"] = 12] = "GREATER_THAN";
+  OpCode[OpCode["GREATER_EQUAL"] = 13] = "GREATER_EQUAL";
+  OpCode[OpCode["LESS_THAN"] = 14] = "LESS_THAN";
+  OpCode[OpCode["LESS_EQUAL"] = 15] = "LESS_EQUAL";
+  OpCode[OpCode["NEGATE"] = 16] = "NEGATE";
+  OpCode[OpCode["BITWISE_AND"] = 17] = "BITWISE_AND";
+  OpCode[OpCode["BITWISE_OR"] = 18] = "BITWISE_OR";
+  OpCode[OpCode["POP"] = 19] = "POP";
+  OpCode[OpCode["DEFINE_GLOBAL"] = 20] = "DEFINE_GLOBAL";
+  OpCode[OpCode["GET_GLOBAL"] = 21] = "GET_GLOBAL";
+  OpCode[OpCode["SET_GLOBAL"] = 22] = "SET_GLOBAL";
+  OpCode[OpCode["GET_LOCAL"] = 23] = "GET_LOCAL";
+  OpCode[OpCode["SET_LOCAL"] = 24] = "SET_LOCAL";
+  OpCode[OpCode["BUILD_ARRAY"] = 25] = "BUILD_ARRAY";
+  OpCode[OpCode["BUILD_OBJECT"] = 26] = "BUILD_OBJECT";
+  OpCode[OpCode["GET_PROPERTY"] = 27] = "GET_PROPERTY";
+  OpCode[OpCode["SET_PROPERTY"] = 28] = "SET_PROPERTY";
+  OpCode[OpCode["JUMP"] = 29] = "JUMP";
+  OpCode[OpCode["JUMP_IF_FALSE"] = 30] = "JUMP_IF_FALSE";
+  OpCode[OpCode["LOOP"] = 31] = "LOOP";
+  OpCode[OpCode["CALL"] = 32] = "CALL";
+  OpCode[OpCode["RETURN"] = 33] = "RETURN";
+  OpCode[OpCode["CALL_BUILTIN"] = 34] = "CALL_BUILTIN";
+  OpCode[OpCode["CHECK_TYPE"] = 35] = "CHECK_TYPE";
+  OpCode[OpCode["SETUP_EXCEPTION"] = 36] = "SETUP_EXCEPTION";
+  OpCode[OpCode["TEARDOWN_EXCEPTION"] = 37] = "TEARDOWN_EXCEPTION";
+  OpCode[OpCode["THROW"] = 38] = "THROW";
 })(OpCode || (exports.OpCode = OpCode = {}));
 
 },{}],18:[function(require,module,exports){
@@ -2790,6 +2879,9 @@ var SnowFallVM = exports.SnowFallVM = function () {
             case _opcodes.OpCode.POP:
               this.stack.pop();
               break;
+            case _opcodes.OpCode.DUP:
+              this.stack.push(this.stack[this.stack.length - 1]);
+              break;
             case _opcodes.OpCode.DEFINE_GLOBAL:
               {
                 var name = this.readConstant();
@@ -2959,7 +3051,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
               }
             case _opcodes.OpCode.NEGATE:
               var value = this.stack.pop();
-              if (typeof value === "number") this.stack.push(-value);else this.stack.push(!value);
+              this.stack.push(!value);
               break;
             case _opcodes.OpCode.JUMP:
               {
