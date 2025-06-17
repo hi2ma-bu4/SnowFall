@@ -667,8 +667,14 @@ var Compiler = exports.Compiler = function () {
     key: "compileFunctionDeclaration",
     value: function compileFunctionDeclaration(node) {
       var compiler = new Compiler(node, this.settings, this);
-      compiler.compile();
-      var funcConstantIndex = this.addConstant(compiler.compiledFunction);
+      var compressed = compiler.compile();
+      var useConstant;
+      if (JSON.stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < JSON.stringify(compiler.compiledFunction).length) {
+        useConstant = compressed;
+      } else {
+        useConstant = compiler.compiledFunction;
+      }
+      var funcConstantIndex = this.addConstant(useConstant);
       this.emitBytes(_opcodes.OpCode.PUSH_CONST, funcConstantIndex);
       if (this.scopeDepth === 0) {
         this.emitBytes(_opcodes.OpCode.DEFINE_GLOBAL, this.addConstant(node.name.name));
@@ -876,6 +882,7 @@ var Compiler = exports.Compiler = function () {
     }
   }]);
 }();
+(0, _defineProperty2["default"])(Compiler, "FUNCTION_COMPRESS_MAGNIFICATION", 4);
 
 },{"../const/opcodes":17,"../util/compressor":25,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6}],15:[function(require,module,exports){
 "use strict";

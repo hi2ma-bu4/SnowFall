@@ -72,6 +72,8 @@ class SymbolTable {
 }
 
 export class Compiler {
+	private static readonly FUNCTION_COMPRESS_MAGNIFICATION = 4;
+
 	private ast: StatementNode;
 	private settings: SnowFallSettings;
 
@@ -568,9 +570,16 @@ export class Compiler {
 
 	private compileFunctionDeclaration(node: FunctionDeclarationNode): void {
 		const compiler = new Compiler(node, this.settings, this);
-		compiler.compile();
 
-		const funcConstantIndex = this.addConstant(compiler.compiledFunction);
+		const compressed = compiler.compile();
+		let useConstant;
+		if (JSON.stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < JSON.stringify(compiler.compiledFunction).length) {
+			useConstant = compressed;
+		} else {
+			useConstant = compiler.compiledFunction;
+		}
+
+		const funcConstantIndex = this.addConstant(useConstant);
 		this.emitBytes(OpCode.PUSH_CONST, funcConstantIndex);
 
 		if (this.scopeDepth === 0) {
