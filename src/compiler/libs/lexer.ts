@@ -1,3 +1,4 @@
+import { LexerError } from "../../const/errors";
 import { Token, TokenType } from "../../const/types";
 
 export class Lexer {
@@ -58,19 +59,18 @@ export class Lexer {
 		while (this.currentChar !== quoteChar && this.currentChar !== null) {
 			// バッククォート以外では改行はエラー
 			if (this.currentChar === "\n" && quoteChar !== "`") {
-				throw new Error(`Lexer Error: Unterminated string at line ${startLine}, column ${startColumn}.`);
+				throw new LexerError(`Unterminated string at line ${startLine}, column ${startColumn}.`, startLine, startColumn);
 			}
 			result += this.currentChar;
 			this.advance();
 		}
 		if (this.currentChar === null) {
-			throw new Error("Lexer Error: Unterminated string.");
+			throw new LexerError("Unterminated string.", startLine, startColumn);
 		}
 		this.advance(); // consume closing "
 		return this.createToken("STRING", result);
 	}
 
-	// (number, skipWhitespace は変更なし)
 	private number(): Token {
 		let result = "";
 		while (this.currentChar !== null && /\d/.test(this.currentChar)) {
@@ -96,7 +96,6 @@ export class Lexer {
 			}
 			// Single-line comment
 			if (this.currentChar === "/" && this.peek() === "/") {
-				// TODO: 後でどうにかする
 				// @ts-ignore
 				while (this.currentChar !== "\n" && this.currentChar !== null) {
 					this.advance();
@@ -107,7 +106,6 @@ export class Lexer {
 			if (this.currentChar === "/" && this.peek() === "*") {
 				this.advance(); // Skip '/'
 				this.advance(); // Skip '*'
-				// TODO: 後でどうにかする
 				// @ts-ignore
 				while (this.currentChar !== null && (this.currentChar !== "*" || this.peek() !== "/")) {
 					this.advance();
@@ -222,7 +220,7 @@ export class Lexer {
 					tokens.push(this.createToken("COMMA", ","));
 					break;
 				default:
-					throw new Error(`Lexer Error: Unknown character: ${this.currentChar}`);
+					throw new LexerError(`Unknown character: ${this.currentChar}`, this.line, this.column);
 			}
 			this.advance();
 		}

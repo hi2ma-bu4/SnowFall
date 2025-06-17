@@ -12,11 +12,28 @@ function _arrayWithoutHoles(r) {
 }
 module.exports = _arrayWithoutHoles, module.exports.__esModule = true, module.exports["default"] = module.exports;
 },{"./arrayLikeToArray.js":1}],3:[function(require,module,exports){
+function _assertThisInitialized(e) {
+  if (void 0 === e) throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
+  return e;
+}
+module.exports = _assertThisInitialized, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{}],4:[function(require,module,exports){
 function _classCallCheck(a, n) {
   if (!(a instanceof n)) throw new TypeError("Cannot call a class as a function");
 }
 module.exports = _classCallCheck, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
+var isNativeReflectConstruct = require("./isNativeReflectConstruct.js");
+var setPrototypeOf = require("./setPrototypeOf.js");
+function _construct(t, e, r) {
+  if (isNativeReflectConstruct()) return Reflect.construct.apply(null, arguments);
+  var o = [null];
+  o.push.apply(o, e);
+  var p = new (t.bind.apply(t, o))();
+  return r && setPrototypeOf(p, r.prototype), p;
+}
+module.exports = _construct, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{"./isNativeReflectConstruct.js":12,"./setPrototypeOf.js":16}],6:[function(require,module,exports){
 var toPropertyKey = require("./toPropertyKey.js");
 function _defineProperties(e, r) {
   for (var t = 0; t < r.length; t++) {
@@ -30,7 +47,7 @@ function _createClass(e, r, t) {
   }), e;
 }
 module.exports = _createClass, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{"./toPropertyKey.js":11}],5:[function(require,module,exports){
+},{"./toPropertyKey.js":19}],7:[function(require,module,exports){
 var toPropertyKey = require("./toPropertyKey.js");
 function _defineProperty(e, r, t) {
   return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
@@ -41,24 +58,81 @@ function _defineProperty(e, r, t) {
   }) : e[r] = t, e;
 }
 module.exports = _defineProperty, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{"./toPropertyKey.js":11}],6:[function(require,module,exports){
+},{"./toPropertyKey.js":19}],8:[function(require,module,exports){
+function _getPrototypeOf(t) {
+  return module.exports = _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf.bind() : function (t) {
+    return t.__proto__ || Object.getPrototypeOf(t);
+  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _getPrototypeOf(t);
+}
+module.exports = _getPrototypeOf, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{}],9:[function(require,module,exports){
+var setPrototypeOf = require("./setPrototypeOf.js");
+function _inherits(t, e) {
+  if ("function" != typeof e && null !== e) throw new TypeError("Super expression must either be null or a function");
+  t.prototype = Object.create(e && e.prototype, {
+    constructor: {
+      value: t,
+      writable: !0,
+      configurable: !0
+    }
+  }), Object.defineProperty(t, "prototype", {
+    writable: !1
+  }), e && setPrototypeOf(t, e);
+}
+module.exports = _inherits, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{"./setPrototypeOf.js":16}],10:[function(require,module,exports){
 function _interopRequireDefault(e) {
   return e && e.__esModule ? e : {
     "default": e
   };
 }
 module.exports = _interopRequireDefault, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{}],7:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
+function _isNativeFunction(t) {
+  try {
+    return -1 !== Function.toString.call(t).indexOf("[native code]");
+  } catch (n) {
+    return "function" == typeof t;
+  }
+}
+module.exports = _isNativeFunction, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{}],12:[function(require,module,exports){
+function _isNativeReflectConstruct() {
+  try {
+    var t = !Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {}));
+  } catch (t) {}
+  return (module.exports = _isNativeReflectConstruct = function _isNativeReflectConstruct() {
+    return !!t;
+  }, module.exports.__esModule = true, module.exports["default"] = module.exports)();
+}
+module.exports = _isNativeReflectConstruct, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{}],13:[function(require,module,exports){
 function _iterableToArray(r) {
   if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r);
 }
 module.exports = _iterableToArray, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{}],8:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 function _nonIterableSpread() {
   throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
 module.exports = _nonIterableSpread, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{}],9:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
+var _typeof = require("./typeof.js")["default"];
+var assertThisInitialized = require("./assertThisInitialized.js");
+function _possibleConstructorReturn(t, e) {
+  if (e && ("object" == _typeof(e) || "function" == typeof e)) return e;
+  if (void 0 !== e) throw new TypeError("Derived constructors may only return object or undefined");
+  return assertThisInitialized(t);
+}
+module.exports = _possibleConstructorReturn, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{"./assertThisInitialized.js":3,"./typeof.js":20}],16:[function(require,module,exports){
+function _setPrototypeOf(t, e) {
+  return module.exports = _setPrototypeOf = Object.setPrototypeOf ? Object.setPrototypeOf.bind() : function (t, e) {
+    return t.__proto__ = e, t;
+  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _setPrototypeOf(t, e);
+}
+module.exports = _setPrototypeOf, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{}],17:[function(require,module,exports){
 var arrayWithoutHoles = require("./arrayWithoutHoles.js");
 var iterableToArray = require("./iterableToArray.js");
 var unsupportedIterableToArray = require("./unsupportedIterableToArray.js");
@@ -67,7 +141,7 @@ function _toConsumableArray(r) {
   return arrayWithoutHoles(r) || iterableToArray(r) || unsupportedIterableToArray(r) || nonIterableSpread();
 }
 module.exports = _toConsumableArray, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{"./arrayWithoutHoles.js":2,"./iterableToArray.js":7,"./nonIterableSpread.js":8,"./unsupportedIterableToArray.js":13}],10:[function(require,module,exports){
+},{"./arrayWithoutHoles.js":2,"./iterableToArray.js":13,"./nonIterableSpread.js":14,"./unsupportedIterableToArray.js":21}],18:[function(require,module,exports){
 var _typeof = require("./typeof.js")["default"];
 function toPrimitive(t, r) {
   if ("object" != _typeof(t) || !t) return t;
@@ -80,7 +154,7 @@ function toPrimitive(t, r) {
   return ("string" === r ? String : Number)(t);
 }
 module.exports = toPrimitive, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{"./typeof.js":12}],11:[function(require,module,exports){
+},{"./typeof.js":20}],19:[function(require,module,exports){
 var _typeof = require("./typeof.js")["default"];
 var toPrimitive = require("./toPrimitive.js");
 function toPropertyKey(t) {
@@ -88,7 +162,7 @@ function toPropertyKey(t) {
   return "symbol" == _typeof(i) ? i : i + "";
 }
 module.exports = toPropertyKey, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{"./toPrimitive.js":10,"./typeof.js":12}],12:[function(require,module,exports){
+},{"./toPrimitive.js":18,"./typeof.js":20}],20:[function(require,module,exports){
 function _typeof(o) {
   "@babel/helpers - typeof";
 
@@ -99,7 +173,7 @@ function _typeof(o) {
   }, module.exports.__esModule = true, module.exports["default"] = module.exports, _typeof(o);
 }
 module.exports = _typeof, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{}],13:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var arrayLikeToArray = require("./arrayLikeToArray.js");
 function _unsupportedIterableToArray(r, a) {
   if (r) {
@@ -109,7 +183,35 @@ function _unsupportedIterableToArray(r, a) {
   }
 }
 module.exports = _unsupportedIterableToArray, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},{"./arrayLikeToArray.js":1}],14:[function(require,module,exports){
+},{"./arrayLikeToArray.js":1}],22:[function(require,module,exports){
+var getPrototypeOf = require("./getPrototypeOf.js");
+var setPrototypeOf = require("./setPrototypeOf.js");
+var isNativeFunction = require("./isNativeFunction.js");
+var construct = require("./construct.js");
+function _wrapNativeSuper(t) {
+  var r = "function" == typeof Map ? new Map() : void 0;
+  return module.exports = _wrapNativeSuper = function _wrapNativeSuper(t) {
+    if (null === t || !isNativeFunction(t)) return t;
+    if ("function" != typeof t) throw new TypeError("Super expression must either be null or a function");
+    if (void 0 !== r) {
+      if (r.has(t)) return r.get(t);
+      r.set(t, Wrapper);
+    }
+    function Wrapper() {
+      return construct(t, arguments, getPrototypeOf(this).constructor);
+    }
+    return Wrapper.prototype = Object.create(t.prototype, {
+      constructor: {
+        value: Wrapper,
+        enumerable: !1,
+        writable: !0,
+        configurable: !0
+      }
+    }), setPrototypeOf(Wrapper, t);
+  }, module.exports.__esModule = true, module.exports["default"] = module.exports, _wrapNativeSuper(t);
+}
+module.exports = _wrapNativeSuper, module.exports.__esModule = true, module.exports["default"] = module.exports;
+},{"./construct.js":5,"./getPrototypeOf.js":8,"./isNativeFunction.js":11,"./setPrototypeOf.js":16}],23:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -120,6 +222,7 @@ exports.Compiler = void 0;
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var _errors = require("../const/errors");
 var _opcodes = require("../const/opcodes");
 var _compressor = require("../util/compressor");
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
@@ -201,12 +304,25 @@ var Compiler = exports.Compiler = function () {
     if (isFunction) {
       funcNode.params.forEach(function (p, index) {
         var paramSymbol = _this.symbolTable.define(p.name.name, _this.scopeDepth, false);
+        if (p.defaultValue) {
+          _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramSymbol.index);
+          _this.emit(_opcodes.OpCode.PUSH_NULL);
+          _this.emit(_opcodes.OpCode.EQUAL);
+          var jumpIfProvided = _this.emitJump(_opcodes.OpCode.JUMP_IF_FALSE);
+          _this.emit(_opcodes.OpCode.POP);
+          _this.compileNode(p.defaultValue);
+          _this.emitBytes(_opcodes.OpCode.SET_LOCAL, paramSymbol.index);
+          _this.emit(_opcodes.OpCode.POP);
+          var jumpToEnd = _this.emitJump(_opcodes.OpCode.JUMP);
+          _this.patchJump(jumpIfProvided);
+          _this.emit(_opcodes.OpCode.POP);
+          _this.patchJump(jumpToEnd);
+        }
         if (p.typeAnnotation) {
           var typeName = p.typeAnnotation.name;
           if (typeName.toLowerCase() !== "any") {
             _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramSymbol.index);
             _this.emitBytes(_opcodes.OpCode.CHECK_TYPE, _this.addConstant(typeName));
-            _this.emit(_opcodes.OpCode.POP);
           }
         }
       });
@@ -262,7 +378,7 @@ var Compiler = exports.Compiler = function () {
     key: "patchJump",
     value: function patchJump(offset) {
       var jump = this.currentChunk().code.length - offset - 2;
-      if (jump > 0xffff) throw new Error("Compiler Error: Too much code to jump over.");
+      if (jump > 0xffff) throw new _errors.CompilerError("Too much code to jump over.", this.currentNode.line, this.currentNode.column);
       this.currentChunk().code[offset] = jump >> 8 & 0xff;
       this.currentChunk().code[offset + 1] = jump & 0xff;
     }
@@ -271,7 +387,7 @@ var Compiler = exports.Compiler = function () {
     value: function emitLoop(loopStart) {
       this.emit(_opcodes.OpCode.LOOP);
       var offset = this.currentChunk().code.length - loopStart + 2;
-      if (offset > 0xffff) throw new Error("Compiler Error: Loop body too large.");
+      if (offset > 0xffff) throw new _errors.CompilerError("Loop body too large.", this.currentNode.line, this.currentNode.column);
       this.emit(offset >> 8 & 0xff);
       this.emit(offset & 0xff);
     }
@@ -387,7 +503,7 @@ var Compiler = exports.Compiler = function () {
           this.compileTryStatement(node);
           break;
         default:
-          throw new Error("Compiler Error: Unknown AST node type: ".concat(node.type));
+          throw new _errors.CompilerError("Unknown AST node type: ".concat(node.type), node.line, node.column);
       }
       this.currentNode = previousNode;
     }
@@ -412,6 +528,7 @@ var Compiler = exports.Compiler = function () {
         if (typeName.toLowerCase() !== "any") {
           this.emit(_opcodes.OpCode.DUP);
           this.emitBytes(_opcodes.OpCode.CHECK_TYPE, this.addConstant(typeName));
+          this.emit(_opcodes.OpCode.POP);
         }
       }
       if (this.scopeDepth === 0) {
@@ -442,7 +559,7 @@ var Compiler = exports.Compiler = function () {
         var symbol = this.symbolTable.resolve(name);
         if (symbol) {
           if (symbol.isConst) {
-            throw new Error("Compiler Error: Cannot assign to constant variable '".concat(name, "'."));
+            throw new _errors.CompilerError("Cannot assign to constant variable '".concat(name, "'."), node.left.line, node.left.column);
           }
           this.emitBytes(_opcodes.OpCode.SET_LOCAL, symbol.index);
         } else {
@@ -454,7 +571,7 @@ var Compiler = exports.Compiler = function () {
         this.compileNode(memberNode.property);
         this.emit(_opcodes.OpCode.SET_PROPERTY);
       } else {
-        throw new Error("Compiler Error: Invalid assignment target.");
+        throw new _errors.CompilerError("Invalid assignment target.", node.line, node.column);
       }
     }
   }, {
@@ -464,12 +581,12 @@ var Compiler = exports.Compiler = function () {
         operator = node.operator,
         prefix = node.prefix;
       if (argument.type !== "Identifier") {
-        throw new Error("Compiler Error: Update expressions currently only support identifiers.");
+        throw new _errors.CompilerError("Update expressions currently only support identifiers.", argument.line, argument.column);
       }
       var symbol = this.symbolTable.resolve(argument.name);
       var isLocal = !!symbol;
       if (isLocal && symbol.isConst) {
-        throw new Error("Compiler Error: Cannot assign to constant variable '".concat(argument.name, "'."));
+        throw new _errors.CompilerError("Cannot assign to constant variable '".concat(argument.name, "'."), argument.line, argument.column);
       }
       var getOp = isLocal ? _opcodes.OpCode.GET_LOCAL : _opcodes.OpCode.GET_GLOBAL;
       var getArg = isLocal ? symbol.index : this.addConstant(argument.name);
@@ -658,7 +775,7 @@ var Compiler = exports.Compiler = function () {
     key: "compileBreakStatement",
     value: function compileBreakStatement(node) {
       if (this.loopContext.length === 0) {
-        throw new Error("Compiler Error: 'break' statement outside of a loop or switch.");
+        throw new _errors.CompilerError("'break' statement outside of a loop or switch.", node.line, node.column);
       }
       var exitJump = this.emitJump(_opcodes.OpCode.JUMP);
       this.loopContext[this.loopContext.length - 1].exitJumps.push(exitJump);
@@ -697,6 +814,7 @@ var Compiler = exports.Compiler = function () {
           if (typeName.toLowerCase() !== "any") {
             this.emit(_opcodes.OpCode.DUP);
             this.emitBytes(_opcodes.OpCode.CHECK_TYPE, this.addConstant(typeName));
+            this.emit(_opcodes.OpCode.POP);
           }
         }
       }
@@ -739,7 +857,7 @@ var Compiler = exports.Compiler = function () {
           this.emit(_opcodes.OpCode.SUBTRACT);
           break;
         default:
-          throw new Error("Compiler Error: Unknown unary operator ".concat(node.operator));
+          throw new _errors.CompilerError("Unknown unary operator ".concat(node.operator), node.line, node.column);
       }
     }
   }, {
@@ -814,7 +932,7 @@ var Compiler = exports.Compiler = function () {
           this.emit(_opcodes.OpCode.BITWISE_OR);
           break;
         default:
-          throw new Error("Compiler Error: Unknown binary operator ".concat(node.operator));
+          throw new _errors.CompilerError("Unknown binary operator ".concat(node.operator), node.line, node.column);
       }
     }
   }, {
@@ -884,7 +1002,7 @@ var Compiler = exports.Compiler = function () {
 }();
 (0, _defineProperty2["default"])(Compiler, "FUNCTION_COMPRESS_MAGNIFICATION", 4);
 
-},{"../const/opcodes":17,"../util/compressor":25,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6}],15:[function(require,module,exports){
+},{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],24:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -895,6 +1013,7 @@ exports.Lexer = void 0;
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
+var _errors = require("../../const/errors");
 var Lexer = exports.Lexer = function () {
   function Lexer(source) {
     (0, _classCallCheck2["default"])(this, Lexer);
@@ -950,13 +1069,13 @@ var Lexer = exports.Lexer = function () {
       var result = "";
       while (this.currentChar !== quoteChar && this.currentChar !== null) {
         if (this.currentChar === "\n" && quoteChar !== "`") {
-          throw new Error("Lexer Error: Unterminated string at line ".concat(startLine, ", column ").concat(startColumn, "."));
+          throw new _errors.LexerError("Unterminated string at line ".concat(startLine, ", column ").concat(startColumn, "."), startLine, startColumn);
         }
         result += this.currentChar;
         this.advance();
       }
       if (this.currentChar === null) {
-        throw new Error("Lexer Error: Unterminated string.");
+        throw new _errors.LexerError("Unterminated string.", startLine, startColumn);
       }
       this.advance();
       return this.createToken("STRING", result);
@@ -1112,7 +1231,7 @@ var Lexer = exports.Lexer = function () {
             tokens.push(this.createToken("COMMA", ","));
             break;
           default:
-            throw new Error("Lexer Error: Unknown character: ".concat(this.currentChar));
+            throw new _errors.LexerError("Unknown character: ".concat(this.currentChar), this.line, this.column);
         }
         this.advance();
       }
@@ -1122,7 +1241,7 @@ var Lexer = exports.Lexer = function () {
   }]);
 }();
 
-},{"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6}],16:[function(require,module,exports){
+},{"../../const/errors":26,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],25:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -1133,6 +1252,7 @@ exports.Parser = void 0;
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
+var _errors = require("../../const/errors");
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { (0, _defineProperty2["default"])(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 var Precedence;
@@ -1202,7 +1322,7 @@ var Parser = exports.Parser = function () {
     });
     (0, _defineProperty2["default"])(this, "parseAssignmentExpression", function (left) {
       if (left.type !== "Identifier" && left.type !== "MemberExpression") {
-        throw new Error("Parser Error: Invalid assignment target.");
+        throw new _errors.ParserError("Invalid assignment target.", left.line, left.column);
       }
       var precedence = _this.currentPrecedence();
       _this.advance();
@@ -1224,7 +1344,7 @@ var Parser = exports.Parser = function () {
     (0, _defineProperty2["default"])(this, "parseUpdateExpression", function (left) {
       if (left) {
         if (left.type !== "Identifier" && left.type !== "MemberExpression") {
-          throw new Error("Parser Error: The left-hand side of a postfix operator must be an identifier.");
+          throw new _errors.ParserError("The left-hand side of a postfix operator must be an identifier.", left.line, left.column);
         }
         return _this.createNode("UpdateExpression", {
           operator: _this.currentToken.value,
@@ -1235,7 +1355,7 @@ var Parser = exports.Parser = function () {
         var operator = _this.currentToken.value;
         _this.advance();
         if (_this.currentToken.type !== "IDENTIFIER") {
-          throw new Error("Parser Error: The right-hand side of a prefix operator must be an identifier.");
+          throw new _errors.ParserError("The right-hand side of a prefix operator must be an identifier.", _this.currentToken.line, _this.currentToken.column);
         }
         var argument = _this.parseIdentifier();
         return _this.createNode("UpdateExpression", {
@@ -1268,9 +1388,10 @@ var Parser = exports.Parser = function () {
       });
     });
     (0, _defineProperty2["default"])(this, "parseGroupedOrTupleExpression", function () {
+      var startToken = _this.currentToken;
       _this.advance();
       if (_this.peekToken.type === "RPAREN") {
-        throw new Error("Parser Error: Empty parentheses is not allowed.");
+        throw new _errors.ParserError("Empty parentheses `()` is not allowed.", startToken.line, startToken.column);
       }
       var exp = _this.parseExpression(Precedence.LOWEST);
       if (_this.peekToken.type === "COMMA") {
@@ -1304,7 +1425,7 @@ var Parser = exports.Parser = function () {
         _this.expectPeek("RBRACKET");
       } else {
         if (_this.currentToken.type !== "IDENTIFIER") {
-          throw new Error("Parser Error: Expected identifier after '.'.");
+          throw new _errors.ParserError("Expected identifier after '.' operator.", _this.currentToken.line, _this.currentToken.column);
         }
         property = _this.parseIdentifier();
       }
@@ -1332,7 +1453,7 @@ var Parser = exports.Parser = function () {
         if (_this.currentToken.type === "RBRACE") break;
         if (_this.currentToken.type === "COMMA") _this.advance();
         if (_this.currentToken.type !== "IDENTIFIER" && _this.currentToken.type !== "STRING") {
-          throw new Error("Parser Error: Invalid key in object literal. Must be an identifier or a string.");
+          throw new _errors.ParserError("Invalid key in object literal. Must be an identifier or a string.", _this.currentToken.line, _this.currentToken.column);
         }
         var key = _this.currentToken.type === "IDENTIFIER" ? _this.parseIdentifier() : _this.parseStringLiteral();
         _this.expectPeek("COLON");
@@ -1381,9 +1502,8 @@ var Parser = exports.Parser = function () {
         _this.advance();
         typeAnnotation = _this.parseIdentifier();
       }
-      var type = _this.peekToken.type;
       var init;
-      if (type === "EQUALS") {
+      if (_this.peekToken.type === "EQUALS") {
         _this.advance();
         _this.advance();
         init = _this.parseExpression(Precedence.LOWEST);
@@ -1409,6 +1529,7 @@ var Parser = exports.Parser = function () {
       return _this.createNode("BreakStatement", {});
     });
     (0, _defineProperty2["default"])(this, "parseIfStatement", function () {
+      var startToken = _this.currentToken;
       var test = _this.parseCondition();
       var consequence;
       if (_this.peekToken.type === "LBRACE") {
@@ -1419,7 +1540,7 @@ var Parser = exports.Parser = function () {
         consequence = _this.parseStatement();
       }
       if (consequence === null) {
-        throw new Error("Parser Error: Consequence of 'if' statement is empty.");
+        throw new _errors.ParserError("Consequence of 'if' statement is empty.", startToken.line, startToken.column);
       }
       var alternate;
       var _this$peekToken = _this.peekToken,
@@ -1445,6 +1566,7 @@ var Parser = exports.Parser = function () {
       });
     });
     (0, _defineProperty2["default"])(this, "parseForStatement", function () {
+      var startToken = _this.currentToken;
       _this.expectPeek("LPAREN");
       _this.advance();
       var init;
@@ -1477,7 +1599,7 @@ var Parser = exports.Parser = function () {
         body = _this.parseStatement();
       }
       if (body === null) {
-        throw new Error("Parser Error: Body of 'for' statement is empty.");
+        throw new _errors.ParserError("Body of 'for' statement is empty.", startToken.line, startToken.column);
       }
       return _this.createNode("ForStatement", {
         init: init,
@@ -1487,6 +1609,7 @@ var Parser = exports.Parser = function () {
       });
     });
     (0, _defineProperty2["default"])(this, "parseWhileStatement", function () {
+      var startToken = _this.currentToken;
       var test = _this.parseCondition();
       var body;
       if (_this.peekToken.type === "LBRACE") {
@@ -1497,7 +1620,7 @@ var Parser = exports.Parser = function () {
         body = _this.parseStatement();
       }
       if (body === null) {
-        throw new Error("Parser Error: Body of 'while' statement is empty.");
+        throw new _errors.ParserError("Body of 'while' statement is empty.", startToken.line, startToken.column);
       }
       return _this.createNode("WhileStatement", {
         test: test,
@@ -1517,7 +1640,7 @@ var Parser = exports.Parser = function () {
         } else if (_this.currentToken.type === "KEYWORD" && _this.currentToken.value === "default") {} else if (_this.currentToken.type === "RBRACE") {
           break;
         } else {
-          throw new Error("Parser Error: Expected 'case', 'default' or '}', got ".concat(_this.currentToken.type, " instead."));
+          throw new _errors.ParserError("Expected 'case', 'default' or '}', got ".concat(_this.currentToken.type, " instead."), _this.currentToken.line, _this.currentToken.column);
         }
         _this.expectPeek("COLON");
         _this.advance();
@@ -1546,32 +1669,33 @@ var Parser = exports.Parser = function () {
       var params = [];
       if (_this.peekToken.type !== "RPAREN") {
         _this.advance();
-        var paramName = _this.parseIdentifier();
-        var typeAnnotation;
-        if (_this.peekToken.type === "COLON") {
-          _this.advance();
-          _this.advance();
-          typeAnnotation = _this.parseIdentifier();
-        }
-        params.push({
-          name: paramName,
-          typeAnnotation: typeAnnotation
-        });
-        while (_this.peekToken.type === "COMMA") {
-          _this.advance();
-          _this.advance();
-          paramName = _this.parseIdentifier();
-          typeAnnotation = undefined;
+        var skipComma = true;
+        do {
+          if (_this.peekToken.type === "COMMA" && !skipComma) {
+            _this.advance();
+            _this.advance();
+          } else {
+            skipComma = false;
+          }
+          var paramName = _this.parseIdentifier();
+          var typeAnnotation = void 0;
           if (_this.peekToken.type === "COLON") {
             _this.advance();
             _this.advance();
             typeAnnotation = _this.parseIdentifier();
           }
+          var defaultValue = void 0;
+          if (_this.peekToken.type === "EQUALS") {
+            _this.advance();
+            _this.advance();
+            defaultValue = _this.parseExpression(Precedence.LOWEST);
+          }
           params.push({
             name: paramName,
-            typeAnnotation: typeAnnotation
+            typeAnnotation: typeAnnotation,
+            defaultValue: defaultValue
           });
-        }
+        } while (_this.peekToken.type === "COMMA");
       }
       _this.expectPeek("RPAREN");
       var returnType;
@@ -1593,6 +1717,7 @@ var Parser = exports.Parser = function () {
       _this.expectPeek("LBRACE");
       var tryBlock = _this.parseBlockStatement();
       var catchClause = null;
+      var catchToken = _this.peekToken;
       if (_this.peekToken.type === "KEYWORD" && _this.peekToken.value === "catch") {
         _this.advance();
         _this.expectPeek("LPAREN");
@@ -1613,7 +1738,7 @@ var Parser = exports.Parser = function () {
         finallyBlock = _this.parseBlockStatement();
       }
       if (!catchClause && !finallyBlock) {
-        throw new Error("Parser Error: 'try' must have at least a 'catch' or 'finally' block.");
+        throw new _errors.ParserError("'try' must have at least a 'catch' or 'finally' block.", catchToken.line, catchToken.column);
       }
       return _this.createNode("TryStatement", {
         tryBlock: tryBlock,
@@ -1708,7 +1833,7 @@ var Parser = exports.Parser = function () {
       if (this.peekToken.type === type) {
         this.advance();
       } else {
-        throw new Error("Parser Error: Expected next token to be ".concat(type, ", got ").concat(this.peekToken.type, " instead."));
+        throw new _errors.ParserError("Expected next token to be ".concat(type, ", got ").concat(this.peekToken.type, " instead."), this.peekToken.line, this.peekToken.column);
       }
     }
   }, {
@@ -1726,7 +1851,7 @@ var Parser = exports.Parser = function () {
     value: function parseExpression(precedence) {
       var prefix = this.prefixParseFns.get(this.currentToken.type);
       if (!prefix) {
-        throw new Error("Parser Error: No prefix parse function for ".concat(this.currentToken.type, " found."));
+        throw new _errors.ParserError("No prefix parse function for ".concat(this.currentToken.type, " found."), this.currentToken.line, this.currentToken.column);
       }
       var leftExp = prefix();
       while (this.peekToken.type !== "SEMICOLON" && precedence < this.peekPrecedence()) {
@@ -1816,7 +1941,80 @@ var Parser = exports.Parser = function () {
   }]);
 }();
 
-},{"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6}],17:[function(require,module,exports){
+},{"../../const/errors":26,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],26:[function(require,module,exports){
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.VMError = exports.ParserError = exports.LexerError = exports.ErrorBase = exports.CompilerError = void 0;
+var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var _possibleConstructorReturn2 = _interopRequireDefault(require("@babel/runtime/helpers/possibleConstructorReturn"));
+var _getPrototypeOf2 = _interopRequireDefault(require("@babel/runtime/helpers/getPrototypeOf"));
+var _inherits2 = _interopRequireDefault(require("@babel/runtime/helpers/inherits"));
+var _wrapNativeSuper2 = _interopRequireDefault(require("@babel/runtime/helpers/wrapNativeSuper"));
+function _callSuper(t, o, e) { return o = (0, _getPrototypeOf2["default"])(o), (0, _possibleConstructorReturn2["default"])(t, _isNativeReflectConstruct() ? Reflect.construct(o, e || [], (0, _getPrototypeOf2["default"])(t).constructor) : o.apply(t, e)); }
+function _isNativeReflectConstruct() { try { var t = !Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {})); } catch (t) {} return (_isNativeReflectConstruct = function _isNativeReflectConstruct() { return !!t; })(); }
+var ErrorBase = exports.ErrorBase = function (_Error) {
+  function ErrorBase(message, line, column) {
+    var _this;
+    (0, _classCallCheck2["default"])(this, ErrorBase);
+    _this = _callSuper(this, ErrorBase, ["".concat(message, "\n (at line ").concat(line, ", column ").concat(column, ")")]);
+    _this.name = _this.constructor.name;
+    _this.line = line;
+    _this.column = column;
+    var BuiltInError = Error;
+    if (BuiltInError.captureStackTrace) {
+      BuiltInError.captureStackTrace(_this, _this.constructor);
+    }
+    return _this;
+  }
+  (0, _inherits2["default"])(ErrorBase, _Error);
+  return (0, _createClass2["default"])(ErrorBase);
+}((0, _wrapNativeSuper2["default"])(Error));
+var LexerError = exports.LexerError = function (_ErrorBase) {
+  function LexerError() {
+    (0, _classCallCheck2["default"])(this, LexerError);
+    return _callSuper(this, LexerError, arguments);
+  }
+  (0, _inherits2["default"])(LexerError, _ErrorBase);
+  return (0, _createClass2["default"])(LexerError);
+}(ErrorBase);
+var ParserError = exports.ParserError = function (_ErrorBase2) {
+  function ParserError() {
+    (0, _classCallCheck2["default"])(this, ParserError);
+    return _callSuper(this, ParserError, arguments);
+  }
+  (0, _inherits2["default"])(ParserError, _ErrorBase2);
+  return (0, _createClass2["default"])(ParserError);
+}(ErrorBase);
+var CompilerError = exports.CompilerError = function (_ErrorBase3) {
+  function CompilerError() {
+    (0, _classCallCheck2["default"])(this, CompilerError);
+    return _callSuper(this, CompilerError, arguments);
+  }
+  (0, _inherits2["default"])(CompilerError, _ErrorBase3);
+  return (0, _createClass2["default"])(CompilerError);
+}(ErrorBase);
+var VMError = exports.VMError = function (_Error2) {
+  function VMError(messageWithStackTrace) {
+    var _this2;
+    (0, _classCallCheck2["default"])(this, VMError);
+    _this2 = _callSuper(this, VMError, [messageWithStackTrace]);
+    _this2.name = "VMError";
+    var BuiltInError = Error;
+    if (BuiltInError.captureStackTrace) {
+      BuiltInError.captureStackTrace(_this2, _this2.constructor);
+    }
+    return _this2;
+  }
+  (0, _inherits2["default"])(VMError, _Error2);
+  return (0, _createClass2["default"])(VMError);
+}((0, _wrapNativeSuper2["default"])(Error));
+
+},{"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/getPrototypeOf":8,"@babel/runtime/helpers/inherits":9,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/possibleConstructorReturn":15,"@babel/runtime/helpers/wrapNativeSuper":22}],27:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -1866,7 +2064,7 @@ var OpCode;
   OpCode[OpCode["THROW"] = 38] = "THROW";
 })(OpCode || (exports.OpCode = OpCode = {}));
 
-},{}],18:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -1879,7 +2077,7 @@ if (typeof window !== "undefined") {
 }
 var _default = exports["default"] = _main.SnowFall;
 
-},{"./main":24}],19:[function(require,module,exports){
+},{"./main":34}],29:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2101,7 +2299,7 @@ var Compressor = exports["default"] = function () {
   }]);
 }();
 
-},{"./config":20,"./util":23,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6,"@babel/runtime/helpers/typeof":12}],20:[function(require,module,exports){
+},{"./config":30,"./util":33,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],30:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2160,7 +2358,7 @@ var COMPRESS_START = exports.COMPRESS_START = CHAR_START + 1;
 var COMPRESS_FIXED_START = exports.COMPRESS_FIXED_START = COMPRESS_START + 5;
 var COMPRESS_INDEX = exports.COMPRESS_INDEX = COMPRESS_FIXED_START + 5;
 
-},{}],21:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2301,7 +2499,7 @@ var Decompressor = exports["default"] = function () {
   }]);
 }();
 
-},{"./config":20,"./util":23,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6,"@babel/runtime/helpers/typeof":12}],22:[function(require,module,exports){
+},{"./config":30,"./util":33,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],32:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2332,7 +2530,7 @@ var _default = exports["default"] = {
   decompress: decompress
 };
 
-},{"./compressor":19,"./decompressor":21,"@babel/runtime/helpers/interopRequireDefault":6}],23:[function(require,module,exports){
+},{"./compressor":29,"./decompressor":31,"@babel/runtime/helpers/interopRequireDefault":10}],33:[function(require,module,exports){
 "use strict";
 
 var _typeof = require("@babel/runtime/helpers/typeof");
@@ -2455,7 +2653,7 @@ function createWindow() {
   return win;
 }
 
-},{"./config":20,"@babel/runtime/helpers/typeof":12}],24:[function(require,module,exports){
+},{"./config":30,"@babel/runtime/helpers/typeof":20}],34:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2494,7 +2692,7 @@ var SnowFall = exports.SnowFall = {
   compileAndRun: compileAndRun
 };
 
-},{"./compiler/compiler":14,"./compiler/libs/lexer":15,"./compiler/libs/parser":16,"./vm/vm":28}],25:[function(require,module,exports){
+},{"./compiler/compiler":23,"./compiler/libs/lexer":24,"./compiler/libs/parser":25,"./vm/vm":38}],35:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2618,7 +2816,7 @@ var Compressor = exports.Compressor = function () {
 (0, _defineProperty2["default"])(Compressor, "BYTE_MASK", 0x7f);
 (0, _defineProperty2["default"])(Compressor, "BYTE_MSB", 0x80);
 
-},{"../libs/lzbase62/src/index":22,"./compressor/smartpack":27,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6}],26:[function(require,module,exports){
+},{"../libs/lzbase62/src/index":32,"./compressor/smartpack":37,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],36:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2691,7 +2889,7 @@ var BitReader = exports.BitReader = function () {
   }]);
 }();
 
-},{"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6}],27:[function(require,module,exports){
+},{"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],37:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2790,7 +2988,7 @@ var SmartPackRLE = exports["default"] = function () {
   }]);
 }();
 
-},{"./bitwriter":26,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/interopRequireDefault":6}],28:[function(require,module,exports){
+},{"./bitwriter":36,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/interopRequireDefault":10}],38:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2803,6 +3001,7 @@ var _typeof2 = _interopRequireDefault(require("@babel/runtime/helpers/typeof"));
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
+var _errors = require("../const/errors");
 var _opcodes = require("../const/opcodes");
 var _compressor = require("../util/compressor");
 var SnowFallVM = exports.SnowFallVM = function () {
@@ -2851,7 +3050,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
         var line = frame.func.chunk.lines[frame.ip - 1] || "unknown";
         trace += "  at ".concat(funcName, " (line ").concat(line, ")\n");
       }
-      return new Error("".concat(message, "\n").concat(trace));
+      return new _errors.VMError("".concat(message, "\n").concat(trace));
     }
   }, {
     key: "run",
@@ -2864,10 +3063,13 @@ var SnowFallVM = exports.SnowFallVM = function () {
               {
                 var expectedType = this.readConstant().toLowerCase();
                 var _value = this.stack[this.stack.length - 1];
+                if (_value === undefined) {
+                  break;
+                }
                 var actualType = void 0;
                 if (_value === null) actualType = "null";else if (Array.isArray(_value)) actualType = "array";else actualType = (0, _typeof2["default"])(_value);
                 if (expectedType !== actualType) {
-                  throw this.runtimeError("TypeError: Expected type '".concat(expectedType, "' but got '").concat(actualType, "'."));
+                  throw this.runtimeError("Expected type '".concat(expectedType, "' but got '").concat(actualType, "'."));
                 }
                 break;
               }
@@ -2899,14 +3101,14 @@ var SnowFallVM = exports.SnowFallVM = function () {
             case _opcodes.OpCode.GET_GLOBAL:
               {
                 var _name = this.readConstant();
-                if (!this.globals.has(_name)) throw new Error("VM Error: Undefined global variable '".concat(_name, "'."));
+                if (!this.globals.has(_name)) throw this.runtimeError("Undefined global variable '".concat(_name, "'."));
                 this.stack.push(this.globals.get(_name));
                 break;
               }
             case _opcodes.OpCode.SET_GLOBAL:
               {
                 var _name2 = this.readConstant();
-                if (!this.globals.has(_name2)) throw new Error("VM Error: Undefined global variable '".concat(_name2, "'."));
+                if (!this.globals.has(_name2)) throw this.runtimeError("Undefined global variable '".concat(_name2, "'."));
                 this.globals.set(_name2, this.stack[this.stack.length - 1]);
                 break;
               }
@@ -2945,7 +3147,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
               {
                 var property = this.stack.pop();
                 var object = this.stack.pop();
-                if (object === null || object === undefined) throw new Error("VM Error: Cannot read property of null or undefined.");
+                if (object === null || object === undefined) throw this.runtimeError("Cannot read property of null or undefined.");
                 this.stack.push(object[property]);
                 break;
               }
@@ -2954,7 +3156,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var _value3 = this.stack.pop();
                 var _property = this.stack.pop();
                 var _object = this.stack.pop();
-                if (_object === null || _object === undefined) throw new Error("VM Error: Cannot set property of null or undefined.");
+                if (_object === null || _object === undefined) throw this.runtimeError("Cannot set property of null or undefined.");
                 _object[_property] = _value3;
                 this.stack.push(_value3);
                 break;
@@ -3005,35 +3207,35 @@ var SnowFallVM = exports.SnowFallVM = function () {
               {
                 var _b6 = this.stack.pop();
                 var _a6 = this.stack.pop();
-                if (typeof _a6 === "number" && typeof _b6 === "number") this.stack.push(_a6 & _b6);else throw new Error("VM Error: Operands must be two numbers for bitwise AND.");
+                if (typeof _a6 === "number" && typeof _b6 === "number") this.stack.push(_a6 & _b6);else throw this.runtimeError("Operands must be two numbers for bitwise AND.");
                 break;
               }
             case _opcodes.OpCode.BITWISE_OR:
               {
                 var _b7 = this.stack.pop();
                 var _a7 = this.stack.pop();
-                if (typeof _a7 === "number" && typeof _b7 === "number") this.stack.push(_a7 | _b7);else throw new Error("VM Error: Operands must be two numbers for bitwise OR.");
+                if (typeof _a7 === "number" && typeof _b7 === "number") this.stack.push(_a7 | _b7);else throw this.runtimeError("Operands must be two numbers for bitwise OR.");
                 break;
               }
             case _opcodes.OpCode.ADD:
               {
                 var _b8 = this.stack.pop();
                 var _a8 = this.stack.pop();
-                if (typeof _a8 === "number" && typeof _b8 === "number") this.stack.push(_a8 + _b8);else if (typeof _a8 === "string" || typeof _b8 === "string") this.stack.push(String(_a8) + String(_b8));else throw new Error("VM Error: Operands must be two numbers or at least one string.");
+                if (typeof _a8 === "number" && typeof _b8 === "number") this.stack.push(_a8 + _b8);else if (typeof _a8 === "string" || typeof _b8 === "string") this.stack.push(String(_a8) + String(_b8));else throw this.runtimeError("Operands must be two numbers or at least one string.");
                 break;
               }
             case _opcodes.OpCode.SUBTRACT:
               {
                 var _b9 = this.stack.pop();
                 var _a9 = this.stack.pop();
-                if (typeof _a9 === "number" && typeof _b9 === "number") this.stack.push(_a9 - _b9);else throw new Error("VM Error: Operands must be two numbers.");
+                if (typeof _a9 === "number" && typeof _b9 === "number") this.stack.push(_a9 - _b9);else throw this.runtimeError("Operands must be two numbers.");
                 break;
               }
             case _opcodes.OpCode.MULTIPLY:
               {
                 var _b0 = this.stack.pop();
                 var _a0 = this.stack.pop();
-                if (typeof _a0 === "number" && typeof _b0 === "number") this.stack.push(_a0 * _b0);else if (typeof _a0 === "string" && typeof _b0 === "number") this.stack.push(_a0.repeat(_b0));else if (typeof _a0 === "number" && typeof _b0 === "string") this.stack.push(_b0.repeat(_a0));else throw new Error("VM Error: Operands must be two numbers. Or one string and one number.");
+                if (typeof _a0 === "number" && typeof _b0 === "number") this.stack.push(_a0 * _b0);else if (typeof _a0 === "string" && typeof _b0 === "number") this.stack.push(_a0.repeat(_b0));else if (typeof _a0 === "number" && typeof _b0 === "string") this.stack.push(_b0.repeat(_a0));else throw this.runtimeError("Operands must be two numbers. Or one string and one number.");
                 break;
               }
             case _opcodes.OpCode.DIVIDE:
@@ -3041,9 +3243,9 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var _b1 = this.stack.pop();
                 var _a1 = this.stack.pop();
                 if (typeof _a1 === "number" && typeof _b1 === "number") {
-                  if (_b1 === 0) throw new Error("VM Error: Division by zero.");
+                  if (_b1 === 0) throw this.runtimeError("Division by zero.");
                   this.stack.push(_a1 / _b1);
-                } else throw new Error("VM Error: Operands must be two numbers.");
+                } else throw this.runtimeError("Operands must be two numbers.");
                 break;
               }
             case _opcodes.OpCode.MODULO:
@@ -3051,9 +3253,9 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var _b10 = this.stack.pop();
                 var _a10 = this.stack.pop();
                 if (typeof _a10 === "number" && typeof _b10 === "number") {
-                  if (_b10 === 0) throw new Error("VM Error: Division by zero.");
+                  if (_b10 === 0) throw this.runtimeError("Division by zero.");
                   this.stack.push(_a10 % _b10);
-                } else throw new Error("VM Error: Operands must be two numbers.");
+                } else throw this.runtimeError("Operands must be two numbers.");
                 break;
               }
             case _opcodes.OpCode.NEGATE:
@@ -3087,17 +3289,22 @@ var SnowFallVM = exports.SnowFallVM = function () {
             case _opcodes.OpCode.CALL:
               {
                 var argCount = this.readByte();
-                var callee = this.stack[this.stack.length - 1 - argCount];
+                var calleeIndex = this.stack.length - 1 - argCount;
+                var callee = this.stack[calleeIndex];
                 if (!(callee && (0, _typeof2["default"])(callee) === "object" && callee.arity !== undefined)) {
-                  throw new Error("VM Error: Can only call functions.");
+                  throw this.runtimeError("Can only call functions.");
                 }
-                if (argCount !== callee.arity) {
-                  throw new Error("VM Error: Expected ".concat(callee.arity, " arguments but got ").concat(argCount, "."));
+                if (argCount > callee.arity) {
+                  throw this.runtimeError("Expected at most ".concat(callee.arity, " arguments but got ").concat(argCount, "."));
                 }
+                for (var _i = argCount; _i < callee.arity; _i++) {
+                  this.stack.push(null);
+                }
+                var func = this.decompressData(callee);
                 var newFrame = {
-                  func: this.decompressData(callee),
+                  func: func,
                   ip: 0,
-                  stackStart: this.stack.length - argCount
+                  stackStart: calleeIndex
                 };
                 this.frames.push(newFrame);
                 this.frame = newFrame;
@@ -3120,12 +3327,12 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var funcName = this.readConstant();
                 var _argCount = this.readByte();
                 var args = this.stack.splice(this.stack.length - _argCount, _argCount);
-                var func = this.settings.builtInFunctions[funcName];
-                if (func) {
-                  var _result = func.apply(void 0, (0, _toConsumableArray2["default"])(args));
+                var _func = this.settings.builtInFunctions[funcName];
+                if (_func) {
+                  var _result = _func.apply(void 0, (0, _toConsumableArray2["default"])(args));
                   this.stack.push(_result === undefined ? null : _result);
                 } else {
-                  throw new Error("VM Error: Built-in function ".concat(funcName, " not found."));
+                  throw this.runtimeError("this.runtimeErrorBuilt-in function ".concat(funcName, " not found."));
                 }
                 break;
               }
@@ -3145,12 +3352,12 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 break;
               }
             default:
-              throw new Error("VM Error: Unknown opcode ".concat(op));
+              throw this.runtimeError("Unknown opcode ".concat(op));
           }
         }
       } catch (error) {
-        if (!error.message.includes("--- Stack Trace ---")) {
-          console.error(this.runtimeError(error.message));
+        if (error instanceof _errors.VMError || error instanceof _errors.ErrorBase) {
+          console.error("".concat(error.name, ": ").concat(error.message));
         } else {
           console.error(error.message);
         }
@@ -3173,5 +3380,5 @@ var SnowFallVM = exports.SnowFallVM = function () {
   }]);
 }();
 
-},{"../const/opcodes":17,"../util/compressor":25,"@babel/runtime/helpers/classCallCheck":3,"@babel/runtime/helpers/createClass":4,"@babel/runtime/helpers/defineProperty":5,"@babel/runtime/helpers/interopRequireDefault":6,"@babel/runtime/helpers/toConsumableArray":9,"@babel/runtime/helpers/typeof":12}]},{},[18])
+},{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/toConsumableArray":17,"@babel/runtime/helpers/typeof":20}]},{},[28])
 //# sourceMappingURL=SnowFall.js.map

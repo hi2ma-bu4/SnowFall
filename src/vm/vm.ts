@@ -1,3 +1,4 @@
+import { ErrorBase, VMError } from "../const/errors";
 import { OpCode } from "../const/opcodes";
 import { CompactCompiledFunction, CompiledFunction, CompiledOutputType, SnowFallSettings } from "../const/types";
 import { Compressor } from "../util/compressor";
@@ -59,7 +60,7 @@ export class SnowFallVM {
 			const line = frame.func.chunk.lines[frame.ip - 1] || "unknown";
 			trace += `  at ${funcName} (line ${line})\n`;
 		}
-		return new Error(`${message}\n${trace}`);
+		return new VMError(`${message}\n${trace}`);
 	}
 
 	public run(): any {
@@ -70,13 +71,20 @@ export class SnowFallVM {
 					case OpCode.CHECK_TYPE: {
 						const expectedType = this.readConstant().toLowerCase();
 						const value = this.stack[this.stack.length - 1]; // peek
+
+						// TODO:本来はnull
+						// Allow undefined for declarations without initializers.
+						if (value === undefined) {
+							break;
+						}
+
 						let actualType: string;
 						if (value === null) actualType = "null";
 						else if (Array.isArray(value)) actualType = "array";
 						else actualType = typeof value;
 
 						if (expectedType !== actualType) {
-							throw this.runtimeError(`TypeError: Expected type '${expectedType}' but got '${actualType}'.`);
+							throw this.runtimeError(`Expected type '${expectedType}' but got '${actualType}'.`);
 						}
 						break;
 					}
@@ -110,13 +118,13 @@ export class SnowFallVM {
 					}
 					case OpCode.GET_GLOBAL: {
 						const name = this.readConstant();
-						if (!this.globals.has(name)) throw new Error(`VM Error: Undefined global variable '${name}'.`);
+						if (!this.globals.has(name)) throw this.runtimeError(`Undefined global variable '${name}'.`);
 						this.stack.push(this.globals.get(name));
 						break;
 					}
 					case OpCode.SET_GLOBAL: {
 						const name = this.readConstant();
-						if (!this.globals.has(name)) throw new Error(`VM Error: Undefined global variable '${name}'.`);
+						if (!this.globals.has(name)) throw this.runtimeError(`Undefined global variable '${name}'.`);
 						this.globals.set(name, this.stack[this.stack.length - 1]);
 						// Note: set does not pop the value from the stack, allowing `a = b = 1`
 						break;
@@ -153,7 +161,7 @@ export class SnowFallVM {
 					case OpCode.GET_PROPERTY: {
 						const property = this.stack.pop();
 						const object = this.stack.pop();
-						if (object === null || object === undefined) throw new Error("VM Error: Cannot read property of null or undefined.");
+						if (object === null || object === undefined) throw this.runtimeError("Cannot read property of null or undefined.");
 						this.stack.push(object[property]);
 						break;
 					}
@@ -161,7 +169,7 @@ export class SnowFallVM {
 						const value = this.stack.pop();
 						const property = this.stack.pop();
 						const object = this.stack.pop();
-						if (object === null || object === undefined) throw new Error("VM Error: Cannot set property of null or undefined.");
+						if (object === null || object === undefined) throw this.runtimeError("Cannot set property of null or undefined.");
 						object[property] = value;
 						this.stack.push(value); // Assignment expression returns the assigned value
 						break;
@@ -207,14 +215,14 @@ export class SnowFallVM {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a & b);
-						else throw new Error("VM Error: Operands must be two numbers for bitwise AND.");
+						else throw this.runtimeError("Operands must be two numbers for bitwise AND.");
 						break;
 					}
 					case OpCode.BITWISE_OR: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a | b);
-						else throw new Error("VM Error: Operands must be two numbers for bitwise OR.");
+						else throw this.runtimeError("Operands must be two numbers for bitwise OR.");
 						break;
 					}
 
@@ -223,14 +231,14 @@ export class SnowFallVM {
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a + b);
 						else if (typeof a === "string" || typeof b === "string") this.stack.push(String(a) + String(b));
-						else throw new Error("VM Error: Operands must be two numbers or at least one string.");
+						else throw this.runtimeError("Operands must be two numbers or at least one string.");
 						break;
 					}
 					case OpCode.SUBTRACT: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a - b);
-						else throw new Error("VM Error: Operands must be two numbers.");
+						else throw this.runtimeError("Operands must be two numbers.");
 						break;
 					}
 					case OpCode.MULTIPLY: {
@@ -239,25 +247,25 @@ export class SnowFallVM {
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a * b);
 						else if (typeof a === "string" && typeof b === "number") this.stack.push(a.repeat(b));
 						else if (typeof a === "number" && typeof b === "string") this.stack.push(b.repeat(a));
-						else throw new Error("VM Error: Operands must be two numbers. Or one string and one number.");
+						else throw this.runtimeError("Operands must be two numbers. Or one string and one number.");
 						break;
 					}
 					case OpCode.DIVIDE: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") {
-							if (b === 0) throw new Error("VM Error: Division by zero.");
+							if (b === 0) throw this.runtimeError("Division by zero.");
 							this.stack.push(a / b);
-						} else throw new Error("VM Error: Operands must be two numbers.");
+						} else throw this.runtimeError("Operands must be two numbers.");
 						break;
 					}
 					case OpCode.MODULO: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") {
-							if (b === 0) throw new Error("VM Error: Division by zero.");
+							if (b === 0) throw this.runtimeError("Division by zero.");
 							this.stack.push(a % b);
-						} else throw new Error("VM Error: Operands must be two numbers.");
+						} else throw this.runtimeError("Operands must be two numbers.");
 						break;
 					}
 
@@ -290,14 +298,23 @@ export class SnowFallVM {
 
 					case OpCode.CALL: {
 						const argCount = this.readByte();
-						const callee = this.stack[this.stack.length - 1 - argCount];
+						const calleeIndex = this.stack.length - 1 - argCount;
+						const callee = this.stack[calleeIndex];
+
 						if (!(callee && typeof callee === "object" && callee.arity !== undefined)) {
-							throw new Error("VM Error: Can only call functions.");
+							throw this.runtimeError("Can only call functions.");
 						}
-						if (argCount !== callee.arity) {
-							throw new Error(`VM Error: Expected ${callee.arity} arguments but got ${argCount}.`);
+						if (argCount > callee.arity) {
+							throw this.runtimeError(`Expected at most ${callee.arity} arguments but got ${argCount}.`);
 						}
-						const newFrame = { func: this.decompressData(callee), ip: 0, stackStart: this.stack.length - argCount };
+
+						// Pad arguments with null if they were not provided
+						for (let i = argCount; i < callee.arity; i++) {
+							this.stack.push(null);
+						}
+
+						const func = this.decompressData(callee);
+						const newFrame = { func, ip: 0, stackStart: calleeIndex };
 						this.frames.push(newFrame);
 						this.frame = newFrame;
 						break;
@@ -325,7 +342,7 @@ export class SnowFallVM {
 							const result = func(...args);
 							this.stack.push(result === undefined ? null : result); // Always push something
 						} else {
-							throw new Error(`VM Error: Built-in function ${funcName} not found.`);
+							throw this.runtimeError(`this.runtimeErrorBuilt-in function ${funcName} not found.`);
 						}
 						break;
 					}
@@ -346,13 +363,13 @@ export class SnowFallVM {
 					}
 
 					default:
-						throw new Error(`VM Error: Unknown opcode ${op}`);
+						throw this.runtimeError(`Unknown opcode ${op}`);
 				}
 			}
 		} catch (error: any) {
 			// VM内部で発生したエラー（runtimeError以外）もスタックトレースを付けて表示
-			if (!error.message.includes("--- Stack Trace ---")) {
-				console.error(this.runtimeError(error.message));
+			if (error instanceof VMError || error instanceof ErrorBase) {
+				console.error(`${error.name}: ${error.message}`);
 			} else {
 				console.error(error.message);
 			}

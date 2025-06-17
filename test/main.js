@@ -6,7 +6,7 @@ try {
 
 jasc.initSetting = {
 	useLib: {
-		//beryl: true,
+		beryl: true,
 	},
 };
 

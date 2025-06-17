@@ -1,3 +1,4 @@
+import { ParserError } from "../../const/errors";
 import {
 	ArrayLiteralNode,
 	AssignmentExpressionNode,
@@ -169,7 +170,7 @@ export class Parser {
 		if (this.peekToken.type === type) {
 			this.advance();
 		} else {
-			throw new Error(`Parser Error: Expected next token to be ${type}, got ${this.peekToken.type} instead.`);
+			throw new ParserError(`Expected next token to be ${type}, got ${this.peekToken.type} instead.`, this.peekToken.line, this.peekToken.column);
 		}
 	}
 
@@ -185,7 +186,7 @@ export class Parser {
 	private parseExpression(precedence: Precedence): ExpressionNode {
 		const prefix = this.prefixParseFns.get(this.currentToken.type);
 		if (!prefix) {
-			throw new Error(`Parser Error: No prefix parse function for ${this.currentToken.type} found.`);
+			throw new ParserError(`No prefix parse function for ${this.currentToken.type} found.`, this.currentToken.line, this.currentToken.column);
 		}
 		let leftExp: ExpressionNode = prefix();
 
@@ -218,7 +219,7 @@ export class Parser {
 
 	private parseAssignmentExpression = (left: ExpressionNode): AssignmentExpressionNode => {
 		if (left.type !== "Identifier" && left.type !== "MemberExpression") {
-			throw new Error("Parser Error: Invalid assignment target.");
+			throw new ParserError("Invalid assignment target.", left.line, left.column);
 		}
 		//const operator = this.currentToken.value;
 		const precedence = this.currentPrecedence();
@@ -238,7 +239,7 @@ export class Parser {
 		// Postfix i++
 		if (left) {
 			if (left.type !== "Identifier" && left.type !== "MemberExpression") {
-				throw new Error("Parser Error: The left-hand side of a postfix operator must be an identifier.");
+				throw new ParserError("The left-hand side of a postfix operator must be an identifier.", left.line, left.column);
 			}
 			return this.createNode("UpdateExpression", {
 				operator: this.currentToken.value as "++" | "--",
@@ -251,7 +252,7 @@ export class Parser {
 			const operator = this.currentToken.value as "++" | "--";
 			this.advance();
 			if (this.currentToken.type !== "IDENTIFIER") {
-				throw new Error("Parser Error: The right-hand side of a prefix operator must be an identifier.");
+				throw new ParserError("The right-hand side of a prefix operator must be an identifier.", this.currentToken.line, this.currentToken.column);
 			}
 			const argument = this.parseIdentifier();
 			return this.createNode("UpdateExpression", { operator, argument, prefix: true });
@@ -275,10 +276,10 @@ export class Parser {
 	};
 
 	private parseGroupedOrTupleExpression = (): ExpressionNode | TupleLiteralNode => {
+		const startToken = this.currentToken;
 		this.advance(); // consume '('
 		if (this.peekToken.type === "RPAREN") {
-			// this.advance();
-			throw new Error("Parser Error: Empty parentheses is not allowed.");
+			throw new ParserError("Empty parentheses `()` is not allowed.", startToken.line, startToken.column);
 		}
 		const exp = this.parseExpression(Precedence.LOWEST);
 		if (this.peekToken.type === "COMMA") {
@@ -312,7 +313,7 @@ export class Parser {
 		} else {
 			// ドットアクセスの場合
 			if (this.currentToken.type !== "IDENTIFIER") {
-				throw new Error("Parser Error: Expected identifier after '.'.");
+				throw new ParserError("Expected identifier after '.' operator.", this.currentToken.line, this.currentToken.column);
 			}
 			property = this.parseIdentifier();
 		}
@@ -335,7 +336,7 @@ export class Parser {
 			if (this.currentToken.type === "COMMA") this.advance();
 
 			if (this.currentToken.type !== "IDENTIFIER" && this.currentToken.type !== "STRING") {
-				throw new Error("Parser Error: Invalid key in object literal. Must be an identifier or a string.");
+				throw new ParserError("Invalid key in object literal. Must be an identifier or a string.", this.currentToken.line, this.currentToken.column);
 			}
 			const key = this.currentToken.type === "IDENTIFIER" ? this.parseIdentifier() : this.parseStringLiteral();
 
@@ -437,9 +438,10 @@ export class Parser {
 			this.advance(); // at type name
 			typeAnnotation = this.parseIdentifier();
 		}
-		const { type } = this.peekToken;
+
 		let init: ExpressionNode | undefined;
-		if (type === "EQUALS") {
+		// @ts-ignore
+		if (this.peekToken.type === "EQUALS") {
 			this.advance(); // consume '='
 			this.advance();
 			init = this.parseExpression(Precedence.LOWEST);
@@ -465,6 +467,7 @@ export class Parser {
 	};
 
 	private parseIfStatement = (): IfStatementNode => {
+		const startToken = this.currentToken;
 		const test = this.parseCondition();
 
 		// ブロック `{` があるかチェック
@@ -478,7 +481,7 @@ export class Parser {
 			consequence = this.parseStatement();
 		}
 		if (consequence === null) {
-			throw new Error("Parser Error: Consequence of 'if' statement is empty.");
+			throw new ParserError("Consequence of 'if' statement is empty.", startToken.line, startToken.column);
 		}
 
 		let alternate: StatementNode | undefined;
@@ -503,6 +506,7 @@ export class Parser {
 	};
 
 	private parseForStatement = (): ForStatementNode => {
+		const startToken = this.currentToken;
 		this.expectPeek("LPAREN"); // consume 'for'
 		this.advance(); // at start of init
 
@@ -546,13 +550,14 @@ export class Parser {
 			body = this.parseStatement();
 		}
 		if (body === null) {
-			throw new Error("Parser Error: Body of 'for' statement is empty.");
+			throw new ParserError("Body of 'for' statement is empty.", startToken.line, startToken.column);
 		}
 
 		return this.createNode("ForStatement", { init, test, update, body });
 	};
 
 	private parseWhileStatement = (): WhileStatementNode => {
+		const startToken = this.currentToken;
 		const test = this.parseCondition();
 
 		let body: StatementNode | null;
@@ -565,7 +570,7 @@ export class Parser {
 			body = this.parseStatement();
 		}
 		if (body === null) {
-			throw new Error("Parser Error: Body of 'while' statement is empty.");
+			throw new ParserError("Body of 'while' statement is empty.", startToken.line, startToken.column);
 		}
 
 		return this.createNode("WhileStatement", { test, body });
@@ -590,7 +595,7 @@ export class Parser {
 				// RBRACEに到達した場合など
 				break;
 			} else {
-				throw new Error(`Parser Error: Expected 'case', 'default' or '}', got ${this.currentToken.type} instead.`);
+				throw new ParserError(`Expected 'case', 'default' or '}', got ${this.currentToken.type} instead.`, this.currentToken.line, this.currentToken.column);
 			}
 			this.expectPeek("COLON");
 			this.advance();
@@ -619,35 +624,66 @@ export class Parser {
 		this.expectPeek("LPAREN");
 
 		// Parse parameters
-		const params: { name: IdentifierNode; typeAnnotation?: IdentifierNode }[] = [];
+		const params: { name: IdentifierNode; typeAnnotation?: IdentifierNode; defaultValue?: ExpressionNode }[] = [];
 		if (this.peekToken.type !== "RPAREN") {
 			this.advance(); // Move to first param
-			// 1. 最初のパラメータをパース
-			let paramName = this.parseIdentifier();
-			let typeAnnotation: IdentifierNode | undefined;
-			if (this.peekToken.type === "COLON") {
-				this.advance(); // consume IDENTIFIER
-				this.advance(); // consume ':'
-				typeAnnotation = this.parseIdentifier();
-			}
-			params.push({ name: paramName, typeAnnotation });
+			let skipComma = true;
+			do {
+				// ',' があれば消費
+				if (this.peekToken.type === "COMMA" && !skipComma) {
+					this.advance();
+					this.advance();
+				} else {
+					skipComma = false;
+				}
 
-			// 2. 2つ目以降のパラメータをパース (カンマがある限り)
-			while (this.peekToken.type === "COMMA") {
-				this.advance(); // consume the last token of the previous parameter (its name or type)
-				this.advance(); // consume the COMMA
+				// パラメータ名
+				const paramName = this.parseIdentifier();
 
-				paramName = this.parseIdentifier();
-				typeAnnotation = undefined;
-				// TODO: あとでどうにかする
-				// @ts-ignore
+				// 型注釈
+				let typeAnnotation: IdentifierNode | undefined;
 				if (this.peekToken.type === "COLON") {
 					this.advance(); // consume IDENTIFIER
 					this.advance(); // consume ':'
 					typeAnnotation = this.parseIdentifier();
 				}
-				params.push({ name: paramName, typeAnnotation });
-			}
+
+				// デフォルト値
+				let defaultValue: ExpressionNode | undefined;
+				if (this.peekToken.type === "EQUALS") {
+					this.advance(); // consume IDENTIFIER or TYPE
+					this.advance(); // consume '='
+					defaultValue = this.parseExpression(Precedence.LOWEST);
+				}
+				params.push({ name: paramName, typeAnnotation, defaultValue });
+			} while (this.peekToken.type === "COMMA");
+			// this.advance(); // Move to first param
+			// // 1. 最初のパラメータをパース
+			// let paramName = this.parseIdentifier();
+			// let typeAnnotation: IdentifierNode | undefined;
+			// if (this.peekToken.type === "COLON") {
+			// 	this.advance(); // consume IDENTIFIER
+			// 	this.advance(); // consume ':'
+			// 	typeAnnotation = this.parseIdentifier();
+			// }
+			// params.push({ name: paramName, typeAnnotation });
+
+			// // 2. 2つ目以降のパラメータをパース (カンマがある限り)
+			// while (this.peekToken.type === "COMMA") {
+			// 	this.advance(); // consume the last token of the previous parameter (its name or type)
+			// 	this.advance(); // consume the COMMA
+
+			// 	paramName = this.parseIdentifier();
+			// 	typeAnnotation = undefined;
+			// 	// TODO: あとでどうにかする
+			// 	// @ts-ignore
+			// 	if (this.peekToken.type === "COLON") {
+			// 		this.advance(); // consume IDENTIFIER
+			// 		this.advance(); // consume ':'
+			// 		typeAnnotation = this.parseIdentifier();
+			// 	}
+			// 	params.push({ name: paramName, typeAnnotation });
+			// }
 		}
 		this.expectPeek("RPAREN");
 
@@ -670,6 +706,7 @@ export class Parser {
 		const tryBlock = this.parseBlockStatement();
 
 		let catchClause = null;
+		const catchToken = this.peekToken;
 		if (this.peekToken.type === "KEYWORD" && this.peekToken.value === "catch") {
 			this.advance(); // 'catch'
 			this.expectPeek("LPAREN");
@@ -689,7 +726,7 @@ export class Parser {
 		}
 
 		if (!catchClause && !finallyBlock) {
-			throw new Error("Parser Error: 'try' must have at least a 'catch' or 'finally' block.");
+			throw new ParserError("'try' must have at least a 'catch' or 'finally' block.", catchToken.line, catchToken.column);
 		}
 
 		return this.createNode("TryStatement", { tryBlock, catchClause, finallyBlock });

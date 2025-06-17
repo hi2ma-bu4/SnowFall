@@ -181,7 +181,11 @@ export interface BreakStatementNode extends StatementNode {
 export interface FunctionDeclarationNode extends StatementNode {
 	type: "FunctionDeclaration";
 	name: IdentifierNode;
-	params: { name: IdentifierNode; typeAnnotation?: IdentifierNode }[];
+	params: {
+		name: IdentifierNode;
+		typeAnnotation?: IdentifierNode;
+		defaultValue?: ExpressionNode;
+	}[];
 	returnType?: IdentifierNode;
 	body: BlockStatementNode;
 }

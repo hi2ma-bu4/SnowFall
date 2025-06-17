@@ -1,3 +1,4 @@
+import { CompilerError } from "../const/errors";
 import { OpCode } from "../const/opcodes";
 import {
 	AnyAstNode,
@@ -117,13 +118,35 @@ export class Compiler {
 				// Define param in symbol table
 				const paramSymbol = this.symbolTable.define(p.name.name, this.scopeDepth, false);
 
-				// Add type check if annotation exists
+				// --- Handle default parameter values ---
+				if (p.defaultValue) {
+					// Check if the parameter was provided (it will be null if not)
+					this.emitBytes(OpCode.GET_LOCAL, paramSymbol.index);
+					this.emit(OpCode.PUSH_NULL);
+					this.emit(OpCode.EQUAL);
+					const jumpIfProvided = this.emitJump(OpCode.JUMP_IF_FALSE);
+
+					// If we are here, parameter was null, so assign default value
+					this.emit(OpCode.POP); // Pop the 'true' from the comparison
+					this.compileNode(p.defaultValue); // Evaluate the default value expression
+					this.emitBytes(OpCode.SET_LOCAL, paramSymbol.index); // Assign it
+					this.emit(OpCode.POP); // Pop the value left by SET_LOCAL
+					const jumpToEnd = this.emitJump(OpCode.JUMP);
+
+					// If parameter was provided, jump here
+					this.patchJump(jumpIfProvided);
+					this.emit(OpCode.POP); // Pop the 'false' from the comparison
+
+					this.patchJump(jumpToEnd);
+				}
+
+				// --- Add type check if annotation exists ---
 				if (p.typeAnnotation) {
 					const typeName = p.typeAnnotation.name;
 					if (typeName.toLowerCase() !== "any") {
 						this.emitBytes(OpCode.GET_LOCAL, paramSymbol.index); // Get the parameter's value
 						this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
-						this.emit(OpCode.POP); // Pop the value after check, as it's not needed on the stack
+						// CHECK_TYPE does not pop the value, so we don't need to do anything here
 					}
 				}
 			});
@@ -162,14 +185,14 @@ export class Compiler {
 	}
 	private patchJump(offset: number) {
 		const jump = this.currentChunk().code.length - offset - 2;
-		if (jump > 0xffff) throw new Error("Compiler Error: Too much code to jump over.");
+		if (jump > 0xffff) throw new CompilerError("Too much code to jump over.", this.currentNode.line, this.currentNode.column);
 		this.currentChunk().code[offset] = (jump >> 8) & 0xff;
 		this.currentChunk().code[offset + 1] = jump & 0xff;
 	}
 	private emitLoop(loopStart: number) {
 		this.emit(OpCode.LOOP);
 		const offset = this.currentChunk().code.length - loopStart + 2;
-		if (offset > 0xffff) throw new Error("Compiler Error: Loop body too large.");
+		if (offset > 0xffff) throw new CompilerError("Loop body too large.", this.currentNode.line, this.currentNode.column);
 		this.emit((offset >> 8) & 0xff);
 		this.emit(offset & 0xff);
 	}
@@ -284,7 +307,7 @@ export class Compiler {
 				this.compileTryStatement(node as TryStatementNode);
 				break;
 			default:
-				throw new Error(`Compiler Error: Unknown AST node type: ${(node as any).type}`);
+				throw new CompilerError(`Unknown AST node type: ${(node as any).type}`, node.line, node.column);
 		}
 		this.currentNode = previousNode;
 	}
@@ -304,8 +327,10 @@ export class Compiler {
 		if (node.typeAnnotation) {
 			const typeName = node.typeAnnotation.name;
 			if (typeName.toLowerCase() !== "any") {
+				// The value is on the stack, duplicate it for the check
 				this.emit(OpCode.DUP);
 				this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
+				this.emit(OpCode.POP); // Pop the duplicated value after check
 			}
 		}
 
@@ -341,7 +366,7 @@ export class Compiler {
 			const symbol = this.symbolTable.resolve(name);
 			if (symbol) {
 				if (symbol.isConst) {
-					throw new Error(`Compiler Error: Cannot assign to constant variable '${name}'.`);
+					throw new CompilerError(`Cannot assign to constant variable '${name}'.`, node.left.line, node.left.column);
 				}
 				this.emitBytes(OpCode.SET_LOCAL, symbol.index);
 			} else {
@@ -353,7 +378,7 @@ export class Compiler {
 			this.compileNode(memberNode.property);
 			this.emit(OpCode.SET_PROPERTY);
 		} else {
-			throw new Error("Compiler Error: Invalid assignment target.");
+			throw new CompilerError("Invalid assignment target.", node.line, node.column);
 		}
 	}
 
@@ -362,7 +387,7 @@ export class Compiler {
 
 		if (argument.type !== "Identifier") {
 			// In the future, this could be extended to support MemberExpression (e.g., obj.prop++)
-			throw new Error("Compiler Error: Update expressions currently only support identifiers.");
+			throw new CompilerError("Update expressions currently only support identifiers.", argument.line, argument.column);
 		}
 		const symbol = this.symbolTable.resolve(argument.name);
 
@@ -370,7 +395,7 @@ export class Compiler {
 		const isLocal = !!symbol;
 
 		if (isLocal && symbol.isConst) {
-			throw new Error(`Compiler Error: Cannot assign to constant variable '${argument.name}'.`);
+			throw new CompilerError(`Cannot assign to constant variable '${argument.name}'.`, argument.line, argument.column);
 		}
 
 		// 変数の種類に応じて適切なオペコードと引数を設定
@@ -562,7 +587,7 @@ export class Compiler {
 
 	private compileBreakStatement(node: BreakStatementNode): void {
 		if (this.loopContext.length === 0) {
-			throw new Error("Compiler Error: 'break' statement outside of a loop or switch.");
+			throw new CompilerError("'break' statement outside of a loop or switch.", node.line, node.column);
 		}
 		const exitJump = this.emitJump(OpCode.JUMP);
 		this.loopContext[this.loopContext.length - 1].exitJumps.push(exitJump);
@@ -605,6 +630,7 @@ export class Compiler {
 					// The return value is on top of the stack. CHECK_TYPE will peek at it.
 					this.emit(OpCode.DUP);
 					this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
+					this.emit(OpCode.POP); // Pop the duplicated value after check
 				}
 			}
 		}
@@ -640,7 +666,7 @@ export class Compiler {
 				this.emit(OpCode.SUBTRACT);
 				break; // Conceptual: 0 - X
 			default:
-				throw new Error(`Compiler Error: Unknown unary operator ${node.operator}`);
+				throw new CompilerError(`Unknown unary operator ${node.operator}`, node.line, node.column);
 		}
 	}
 
@@ -715,7 +741,7 @@ export class Compiler {
 				this.emit(OpCode.BITWISE_OR);
 				break;
 			default:
-				throw new Error(`Compiler Error: Unknown binary operator ${node.operator}`);
+				throw new CompilerError(`Unknown binary operator ${node.operator}`, node.line, node.column);
 		}
 	}
 
