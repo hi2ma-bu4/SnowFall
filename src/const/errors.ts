@@ -3,21 +3,13 @@ interface ErrorConstructor {
 }
 
 /**
- * SnowFallのすべてのカスタムエラーの基底クラス。
- * エラーメッセージに加えて、コード上の位置情報（行・列）を保持します。
+ * すべてのカスタムエラーの基底クラス
  */
-export class ErrorBase extends Error {
-	public line: number;
-	public column: number;
+export class SnowFallBaseError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = this.constructor.name;
 
-	constructor(message: string, line: number, column: number) {
-		// エラーメッセージに位置情報を含める
-		super(`${message}\n (at line ${line}, column ${column})`);
-		this.name = this.constructor.name; // クラス名をエラー名として設定
-		this.line = line;
-		this.column = column;
-
-		// V8（Node.js, Chromeなど）でスタックトレースを正しくキャプチャするため
 		const BuiltInError: ErrorConstructor = Error as ErrorConstructor;
 		if (BuiltInError.captureStackTrace) {
 			BuiltInError.captureStackTrace(this, this.constructor);
@@ -26,32 +18,50 @@ export class ErrorBase extends Error {
 }
 
 /**
+ * 行・列の情報を持つエラー
+ */
+export class PositionedError extends SnowFallBaseError {
+	public line: number;
+	public column: number;
+
+	constructor(message: string, line: number, column: number) {
+		super(`${message}\n (at line ${line}, column ${column})`);
+		this.line = line;
+		this.column = column;
+	}
+}
+
+/**
+ * 単純なメッセージのみのエラー
+ */
+export class SimpleError extends SnowFallBaseError {
+	constructor(message: string) {
+		super(message);
+	}
+}
+
+/**
  * 字句解析（Lexer）中に発生するエラー。
  */
-export class LexerError extends ErrorBase {}
+export class LexerError extends PositionedError {}
 
 /**
  * 構文解析（Parser）中に発生するエラー。
  */
-export class ParserError extends ErrorBase {}
+export class ParserError extends PositionedError {}
 
 /**
  * コンパイル（Compiler）中に発生するエラー。
  */
-export class CompilerError extends ErrorBase {}
+export class CompilerError extends PositionedError {}
+
+export class SymbolTableError extends SimpleError {}
 
 /**
  * VM実行時（Runtime）に発生するエラー。
- * これにはコールスタックが含まれるため、ErrorBaseとは異なる形式でメッセージを構築します。
  */
-export class VMError extends Error {
+export class VMError extends SnowFallBaseError {
 	constructor(messageWithStackTrace: string) {
 		super(messageWithStackTrace);
-		this.name = "VMError";
-
-		const BuiltInError: ErrorConstructor = Error as ErrorConstructor;
-		if (BuiltInError.captureStackTrace) {
-			BuiltInError.captureStackTrace(this, this.constructor);
-		}
 	}
 }

@@ -281,19 +281,31 @@ export class Parser {
 		if (this.peekToken.type === "RPAREN") {
 			throw new ParserError("Empty parentheses `()` is not allowed.", startToken.line, startToken.column);
 		}
-		const exp = this.parseExpression(Precedence.LOWEST);
+		const firstExpr = this.parseExpression(Precedence.LOWEST);
+		if (this.currentToken.type === "RPAREN") {
+			this.advance(); // consume ')'
+			// This is a grouped expression like (1 + 2)
+			return firstExpr;
+		}
+
 		if (this.peekToken.type === "COMMA") {
+			// This is a tuple
 			this.advance();
-			const elements: ExpressionNode[] = [exp];
+			const elements: ExpressionNode[] = [firstExpr];
+			// @ts-ignore
 			while (this.currentToken.type !== "RPAREN") {
-				if (this.peekToken.type === "COMMA") this.advance();
 				elements.push(this.parseExpression(Precedence.LOWEST));
+				// @ts-ignore
+				if (this.currentToken.type === "RPAREN") break;
+				if (this.currentToken.type !== "COMMA") {
+					throw new ParserError(`Expected ',' or ')' in tuple, got ${this.currentToken.type}`, this.currentToken.line, this.currentToken.column);
+				}
+				this.advance(); // consume comma
 			}
-			this.expectPeek("RPAREN");
+			this.advance(); // consume ')'
 			return this.createNode("TupleLiteral", { elements });
 		}
-		this.expectPeek("RPAREN");
-		return exp;
+		throw new ParserError(`Expected ')' or ',' after expression, got ${this.currentToken.type}`, this.currentToken.line, this.currentToken.column);
 	};
 
 	private parseCallExpression = (func: ExpressionNode): CallExpressionNode => {
@@ -375,6 +387,8 @@ export class Parser {
 		}
 
 		switch (this.currentToken.type) {
+			case "LBRACE":
+				return this.parseBlockStatement();
 			case "KEYWORD":
 				switch (this.currentToken.value) {
 					case "let":
@@ -404,6 +418,8 @@ export class Parser {
 
 	private parseBlockStatement = (): BlockStatementNode => {
 		const body: StatementNode[] = [];
+		// NOTE: 開始の'{'は呼び出し元のparseStatementで認識されるため、
+		// ここでは次のトークンに進めてからパースを開始する。
 		this.advance(); // consume '{'
 		while (this.currentToken.type !== "RBRACE" && this.currentToken.type !== "EOF") {
 			const stmt = this.parseStatement();
@@ -470,38 +486,28 @@ export class Parser {
 		const startToken = this.currentToken;
 		const test = this.parseCondition();
 
-		// ブロック `{` があるかチェック
-		let consequence: StatementNode | null;
-		if (this.peekToken.type === "LBRACE") {
-			this.expectPeek("LBRACE");
-			consequence = this.parseBlockStatement();
-		} else {
-			// `{` がない場合は、単一の文としてパース
-			this.advance();
-			consequence = this.parseStatement();
-		}
+		// 単一の文としてパース
+		this.advance();
+		const consequence = this.parseStatement();
 		if (consequence === null) {
 			throw new ParserError("Consequence of 'if' statement is empty.", startToken.line, startToken.column);
 		}
 
-		let alternate: StatementNode | undefined;
+		let alternate: StatementNode | null | undefined;
 		const { type, value } = this.peekToken;
 		if (type === "KEYWORD" && value === "else") {
-			this.advance(); // consume 'else'
-			if (this.peekToken.type === "KEYWORD" && this.peekToken.value === "if") {
-				// 'else if' の場合、再帰的に parseIfStatement を呼ぶ
-				this.advance();
-				alternate = this.parseIfStatement();
-			} else if (this.peekToken.type === "LBRACE") {
-				// 'else { ... }' の場合
-				this.expectPeek("LBRACE");
-				alternate = this.parseBlockStatement();
-			} else {
-				// 'else ...' (単一文) の場合
-				this.advance();
-				alternate = this.parseStatement() || undefined;
-			}
+			this.advance(); // Consume the last token of the consequence
+			this.advance(); // Consume the 'else' keyword
+
+			// `else`の後の文(if, block, or single statement)のパースもparseStatementに移譲
+			this.advance(); // Move to the start of the alternate statement
+			alternate = this.parseStatement();
 		}
+
+		if (alternate === null) {
+			alternate = undefined;
+		}
+
 		return this.createNode("IfStatement", { test, consequence, alternate });
 	};
 
@@ -532,7 +538,6 @@ export class Parser {
 
 		// 3. Update
 		let update: ExpressionNode | undefined;
-		// あとでどうにかする
 		// @ts-ignore
 		if (this.currentToken.type !== "RPAREN") {
 			update = this.parseExpression(Precedence.LOWEST);
@@ -540,15 +545,8 @@ export class Parser {
 		this.expectPeek("RPAREN");
 
 		// 4. Body
-		let body: StatementNode | null;
-		if (this.peekToken.type === "LBRACE") {
-			this.expectPeek("LBRACE");
-			body = this.parseBlockStatement();
-		} else {
-			// `{` がない場合は、単一の文としてパース
-			this.advance();
-			body = this.parseStatement();
-		}
+		this.advance();
+		const body = this.parseStatement();
 		if (body === null) {
 			throw new ParserError("Body of 'for' statement is empty.", startToken.line, startToken.column);
 		}
@@ -560,15 +558,9 @@ export class Parser {
 		const startToken = this.currentToken;
 		const test = this.parseCondition();
 
-		let body: StatementNode | null;
-		if (this.peekToken.type === "LBRACE") {
-			this.expectPeek("LBRACE");
-			body = this.parseBlockStatement();
-		} else {
-			// `{` がない場合は、単一の文としてパース
-			this.advance();
-			body = this.parseStatement();
-		}
+		// 単一の文としてパース
+		this.advance();
+		const body = this.parseStatement();
 		if (body === null) {
 			throw new ParserError("Body of 'while' statement is empty.", startToken.line, startToken.column);
 		}

@@ -249,11 +249,19 @@ var SymbolTable = function () {
   return (0, _createClass2["default"])(SymbolTable, [{
     key: "define",
     value: function define(name, depth, isConst) {
+      if (this.store.has(name)) {
+        throw new _errors.SymbolTableError("Identifier '".concat(name, "' has already been declared in this scope."));
+      }
       var index = this.parentLocalCount + this.localCount;
       var symbol = new SymbolValue(name, depth, index, isConst);
       this.store.set(name, symbol);
       this.localCount++;
       return symbol;
+    }
+  }, {
+    key: "has",
+    value: function has(name) {
+      return this.store.has(name);
     }
   }, {
     key: "resolve",
@@ -298,20 +306,19 @@ var Compiler = exports.Compiler = function () {
     };
     if (isFunction) {
       this.symbolTable.define(funcName, this.scopeDepth, true);
-    } else {
-      this.symbolTable.define("main", this.scopeDepth, true);
     }
     if (isFunction) {
       funcNode.params.forEach(function (p, index) {
         var paramSymbol = _this.symbolTable.define(p.name.name, _this.scopeDepth, false);
+        var paramIndex = paramSymbol.index;
         if (p.defaultValue) {
-          _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramSymbol.index);
+          _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramIndex);
           _this.emit(_opcodes.OpCode.PUSH_NULL);
           _this.emit(_opcodes.OpCode.EQUAL);
           var jumpIfProvided = _this.emitJump(_opcodes.OpCode.JUMP_IF_FALSE);
           _this.emit(_opcodes.OpCode.POP);
           _this.compileNode(p.defaultValue);
-          _this.emitBytes(_opcodes.OpCode.SET_LOCAL, paramSymbol.index);
+          _this.emitBytes(_opcodes.OpCode.SET_LOCAL, paramIndex);
           _this.emit(_opcodes.OpCode.POP);
           var jumpToEnd = _this.emitJump(_opcodes.OpCode.JUMP);
           _this.patchJump(jumpIfProvided);
@@ -321,8 +328,9 @@ var Compiler = exports.Compiler = function () {
         if (p.typeAnnotation) {
           var typeName = p.typeAnnotation.name;
           if (typeName.toLowerCase() !== "any") {
-            _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramSymbol.index);
+            _this.emitBytes(_opcodes.OpCode.GET_LOCAL, paramIndex);
             _this.emitBytes(_opcodes.OpCode.CHECK_TYPE, _this.addConstant(typeName));
+            _this.emit(_opcodes.OpCode.POP);
           }
         }
       });
@@ -453,6 +461,9 @@ var Compiler = exports.Compiler = function () {
         case "ObjectLiteral":
           this.compileObjectLiteral(node);
           break;
+        case "TupleLiteral":
+          this.compileTupleLiteral(node);
+          break;
         case "IfStatement":
           this.compileIfStatement(node);
           break;
@@ -518,6 +529,9 @@ var Compiler = exports.Compiler = function () {
   }, {
     key: "compileVariableDeclaration",
     value: function compileVariableDeclaration(node) {
+      if (this.symbolTable.has(node.identifier.name)) {
+        throw new _errors.CompilerError("Variable '".concat(node.identifier.name, "' already declared in this scope."), node.identifier.line, node.identifier.column);
+      }
       if (node.init) {
         this.compileNode(node.init);
       } else {
@@ -540,9 +554,6 @@ var Compiler = exports.Compiler = function () {
   }, {
     key: "compileIdentifier",
     value: function compileIdentifier(node) {
-      if (this.settings.builtInFunctions[node.name]) {
-        return;
-      }
       var symbol = this.symbolTable.resolve(node.name);
       if (symbol) {
         this.emitBytes(_opcodes.OpCode.GET_LOCAL, symbol.index);
@@ -561,7 +572,11 @@ var Compiler = exports.Compiler = function () {
           if (symbol.isConst) {
             throw new _errors.CompilerError("Cannot assign to constant variable '".concat(name, "'."), node.left.line, node.left.column);
           }
-          this.emitBytes(_opcodes.OpCode.SET_LOCAL, symbol.index);
+          if (symbol.depth === 0) {
+            this.emitBytes(_opcodes.OpCode.SET_GLOBAL, this.addConstant(name));
+          } else {
+            this.emitBytes(_opcodes.OpCode.SET_LOCAL, symbol.index);
+          }
         } else {
           this.emitBytes(_opcodes.OpCode.SET_GLOBAL, this.addConstant(name));
         }
@@ -584,17 +599,26 @@ var Compiler = exports.Compiler = function () {
         throw new _errors.CompilerError("Update expressions currently only support identifiers.", argument.line, argument.column);
       }
       var symbol = this.symbolTable.resolve(argument.name);
-      var isLocal = !!symbol;
-      if (isLocal && symbol.isConst) {
+      if (symbol && symbol.isConst) {
         throw new _errors.CompilerError("Cannot assign to constant variable '".concat(argument.name, "'."), argument.line, argument.column);
       }
-      var getOp = isLocal ? _opcodes.OpCode.GET_LOCAL : _opcodes.OpCode.GET_GLOBAL;
-      var getArg = isLocal ? symbol.index : this.addConstant(argument.name);
-      var setOp = isLocal ? _opcodes.OpCode.SET_LOCAL : _opcodes.OpCode.SET_GLOBAL;
-      var setArg = isLocal ? symbol.index : this.addConstant(argument.name);
+      var getOp, getArg, setOp, setArg;
+      var isGlobal = !symbol || symbol.depth === 0;
+      if (isGlobal) {
+        var constIndex = this.addConstant(argument.name);
+        getOp = _opcodes.OpCode.GET_GLOBAL;
+        getArg = constIndex;
+        setOp = _opcodes.OpCode.SET_GLOBAL;
+        setArg = constIndex;
+      } else {
+        getOp = _opcodes.OpCode.GET_LOCAL;
+        getArg = symbol.index;
+        setOp = _opcodes.OpCode.SET_LOCAL;
+        setArg = symbol.index;
+      }
       this.emitBytes(getOp, getArg);
       if (!prefix) {
-        this.emitBytes(getOp, getArg);
+        this.emit(_opcodes.OpCode.DUP);
       }
       this.emitConstant(1);
       this.emit(operator === "++" ? _opcodes.OpCode.ADD : _opcodes.OpCode.SUBTRACT);
@@ -617,10 +641,19 @@ var Compiler = exports.Compiler = function () {
     value: function compileObjectLiteral(node) {
       var _this5 = this;
       node.properties.forEach(function (prop) {
-        _this5.emitConstant(prop.key.value);
+        _this5.emitConstant(prop.key.type === "Identifier" ? prop.key.name : prop.key.value);
         _this5.compileNode(prop.value);
       });
       this.emitBytes(_opcodes.OpCode.BUILD_OBJECT, node.properties.length);
+    }
+  }, {
+    key: "compileTupleLiteral",
+    value: function compileTupleLiteral(node) {
+      var _this6 = this;
+      node.elements.forEach(function (el) {
+        return _this6.compileNode(el);
+      });
+      this.emitBytes(_opcodes.OpCode.BUILD_TUPLE, node.elements.length);
     }
   }, {
     key: "compileMemberExpression",
@@ -654,7 +687,7 @@ var Compiler = exports.Compiler = function () {
   }, {
     key: "compileForStatement",
     value: function compileForStatement(node) {
-      var _this6 = this;
+      var _this7 = this;
       this.beginScope();
       if (node.init) {
         this.compileNode(node.init);
@@ -685,14 +718,14 @@ var Compiler = exports.Compiler = function () {
       }
       var currentLoop = this.loopContext.pop();
       currentLoop.exitJumps.forEach(function (offset) {
-        return _this6.patchJump(offset);
+        return _this7.patchJump(offset);
       });
       this.endScope();
     }
   }, {
     key: "compileWhileStatement",
     value: function compileWhileStatement(node) {
-      var _this7 = this;
+      var _this8 = this;
       var loopStart = this.currentChunk().code.length;
       this.loopContext.push({
         loopStart: loopStart,
@@ -707,13 +740,13 @@ var Compiler = exports.Compiler = function () {
       this.emit(_opcodes.OpCode.POP);
       var currentLoop = this.loopContext.pop();
       currentLoop.exitJumps.forEach(function (offset) {
-        return _this7.patchJump(offset);
+        return _this8.patchJump(offset);
       });
     }
   }, {
     key: "compileSwitchStatement",
     value: function compileSwitchStatement(node) {
-      var _this8 = this;
+      var _this9 = this;
       this.compileNode(node.discriminant);
       this.loopContext.push({
         loopStart: -1,
@@ -767,7 +800,7 @@ var Compiler = exports.Compiler = function () {
       this.patchJump(jumpOverDefault);
       var currentLoop = this.loopContext.pop();
       currentLoop.exitJumps.forEach(function (offset) {
-        return _this8.patchJump(offset);
+        return _this9.patchJump(offset);
       });
       this.emit(_opcodes.OpCode.POP);
     }
@@ -836,12 +869,7 @@ var Compiler = exports.Compiler = function () {
       } finally {
         _iterator2.f();
       }
-      if (node.callee.type === "Identifier" && this.settings.builtInFunctions[node.callee.name]) {
-        var funcNameIndex = this.addConstant(node.callee.name);
-        this.emitBytes(_opcodes.OpCode.CALL_BUILTIN, funcNameIndex, node.arguments.length);
-      } else {
-        this.emitBytes(_opcodes.OpCode.CALL, node.arguments.length);
-      }
+      this.emitBytes(_opcodes.OpCode.CALL, node.arguments.length);
     }
   }, {
     key: "compileUnaryExpression",
@@ -1040,6 +1068,9 @@ var Lexer = exports.Lexer = function () {
       "finally": "KEYWORD",
       "throw": "KEYWORD"
     });
+    if (source === "") {
+      source = " ";
+    }
     this.source = source;
     this.currentChar = this.source[this.pos];
   }
@@ -1393,21 +1424,28 @@ var Parser = exports.Parser = function () {
       if (_this.peekToken.type === "RPAREN") {
         throw new _errors.ParserError("Empty parentheses `()` is not allowed.", startToken.line, startToken.column);
       }
-      var exp = _this.parseExpression(Precedence.LOWEST);
+      var firstExpr = _this.parseExpression(Precedence.LOWEST);
+      if (_this.currentToken.type === "RPAREN") {
+        _this.advance();
+        return firstExpr;
+      }
       if (_this.peekToken.type === "COMMA") {
         _this.advance();
-        var elements = [exp];
+        var elements = [firstExpr];
         while (_this.currentToken.type !== "RPAREN") {
-          if (_this.peekToken.type === "COMMA") _this.advance();
           elements.push(_this.parseExpression(Precedence.LOWEST));
+          if (_this.currentToken.type === "RPAREN") break;
+          if (_this.currentToken.type !== "COMMA") {
+            throw new _errors.ParserError("Expected ',' or ')' in tuple, got ".concat(_this.currentToken.type), _this.currentToken.line, _this.currentToken.column);
+          }
+          _this.advance();
         }
-        _this.expectPeek("RPAREN");
+        _this.advance();
         return _this.createNode("TupleLiteral", {
           elements: elements
         });
       }
-      _this.expectPeek("RPAREN");
-      return exp;
+      throw new _errors.ParserError("Expected ')' or ',' after expression, got ".concat(_this.currentToken.type), _this.currentToken.line, _this.currentToken.column);
     });
     (0, _defineProperty2["default"])(this, "parseCallExpression", function (func) {
       var args = _this.parseExpressionList("RPAREN");
@@ -1531,14 +1569,8 @@ var Parser = exports.Parser = function () {
     (0, _defineProperty2["default"])(this, "parseIfStatement", function () {
       var startToken = _this.currentToken;
       var test = _this.parseCondition();
-      var consequence;
-      if (_this.peekToken.type === "LBRACE") {
-        _this.expectPeek("LBRACE");
-        consequence = _this.parseBlockStatement();
-      } else {
-        _this.advance();
-        consequence = _this.parseStatement();
-      }
+      _this.advance();
+      var consequence = _this.parseStatement();
       if (consequence === null) {
         throw new _errors.ParserError("Consequence of 'if' statement is empty.", startToken.line, startToken.column);
       }
@@ -1548,16 +1580,12 @@ var Parser = exports.Parser = function () {
         value = _this$peekToken.value;
       if (type === "KEYWORD" && value === "else") {
         _this.advance();
-        if (_this.peekToken.type === "KEYWORD" && _this.peekToken.value === "if") {
-          _this.advance();
-          alternate = _this.parseIfStatement();
-        } else if (_this.peekToken.type === "LBRACE") {
-          _this.expectPeek("LBRACE");
-          alternate = _this.parseBlockStatement();
-        } else {
-          _this.advance();
-          alternate = _this.parseStatement() || undefined;
-        }
+        _this.advance();
+        _this.advance();
+        alternate = _this.parseStatement();
+      }
+      if (alternate === null) {
+        alternate = undefined;
       }
       return _this.createNode("IfStatement", {
         test: test,
@@ -1590,14 +1618,8 @@ var Parser = exports.Parser = function () {
         update = _this.parseExpression(Precedence.LOWEST);
       }
       _this.expectPeek("RPAREN");
-      var body;
-      if (_this.peekToken.type === "LBRACE") {
-        _this.expectPeek("LBRACE");
-        body = _this.parseBlockStatement();
-      } else {
-        _this.advance();
-        body = _this.parseStatement();
-      }
+      _this.advance();
+      var body = _this.parseStatement();
       if (body === null) {
         throw new _errors.ParserError("Body of 'for' statement is empty.", startToken.line, startToken.column);
       }
@@ -1611,14 +1633,8 @@ var Parser = exports.Parser = function () {
     (0, _defineProperty2["default"])(this, "parseWhileStatement", function () {
       var startToken = _this.currentToken;
       var test = _this.parseCondition();
-      var body;
-      if (_this.peekToken.type === "LBRACE") {
-        _this.expectPeek("LBRACE");
-        body = _this.parseBlockStatement();
-      } else {
-        _this.advance();
-        body = _this.parseStatement();
-      }
+      _this.advance();
+      var body = _this.parseStatement();
       if (body === null) {
         throw new _errors.ParserError("Body of 'while' statement is empty.", startToken.line, startToken.column);
       }
@@ -1889,6 +1905,8 @@ var Parser = exports.Parser = function () {
         return this.createNode("EmptyStatement", {});
       }
       switch (this.currentToken.type) {
+        case "LBRACE":
+          return this.parseBlockStatement();
         case "KEYWORD":
           switch (this.currentToken.value) {
             case "let":
@@ -1948,7 +1966,7 @@ var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefau
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.VMError = exports.ParserError = exports.LexerError = exports.ErrorBase = exports.CompilerError = void 0;
+exports.VMError = exports.SymbolTableError = exports.SnowFallBaseError = exports.SimpleError = exports.PositionedError = exports.ParserError = exports.LexerError = exports.CompilerError = void 0;
 var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
 var _possibleConstructorReturn2 = _interopRequireDefault(require("@babel/runtime/helpers/possibleConstructorReturn"));
@@ -1957,62 +1975,81 @@ var _inherits2 = _interopRequireDefault(require("@babel/runtime/helpers/inherits
 var _wrapNativeSuper2 = _interopRequireDefault(require("@babel/runtime/helpers/wrapNativeSuper"));
 function _callSuper(t, o, e) { return o = (0, _getPrototypeOf2["default"])(o), (0, _possibleConstructorReturn2["default"])(t, _isNativeReflectConstruct() ? Reflect.construct(o, e || [], (0, _getPrototypeOf2["default"])(t).constructor) : o.apply(t, e)); }
 function _isNativeReflectConstruct() { try { var t = !Boolean.prototype.valueOf.call(Reflect.construct(Boolean, [], function () {})); } catch (t) {} return (_isNativeReflectConstruct = function _isNativeReflectConstruct() { return !!t; })(); }
-var ErrorBase = exports.ErrorBase = function (_Error) {
-  function ErrorBase(message, line, column) {
+var SnowFallBaseError = exports.SnowFallBaseError = function (_Error) {
+  function SnowFallBaseError(message) {
     var _this;
-    (0, _classCallCheck2["default"])(this, ErrorBase);
-    _this = _callSuper(this, ErrorBase, ["".concat(message, "\n (at line ").concat(line, ", column ").concat(column, ")")]);
+    (0, _classCallCheck2["default"])(this, SnowFallBaseError);
+    _this = _callSuper(this, SnowFallBaseError, [message]);
     _this.name = _this.constructor.name;
-    _this.line = line;
-    _this.column = column;
     var BuiltInError = Error;
     if (BuiltInError.captureStackTrace) {
       BuiltInError.captureStackTrace(_this, _this.constructor);
     }
     return _this;
   }
-  (0, _inherits2["default"])(ErrorBase, _Error);
-  return (0, _createClass2["default"])(ErrorBase);
+  (0, _inherits2["default"])(SnowFallBaseError, _Error);
+  return (0, _createClass2["default"])(SnowFallBaseError);
 }((0, _wrapNativeSuper2["default"])(Error));
-var LexerError = exports.LexerError = function (_ErrorBase) {
+var PositionedError = exports.PositionedError = function (_SnowFallBaseError) {
+  function PositionedError(message, line, column) {
+    var _this2;
+    (0, _classCallCheck2["default"])(this, PositionedError);
+    _this2 = _callSuper(this, PositionedError, ["".concat(message, "\n (at line ").concat(line, ", column ").concat(column, ")")]);
+    _this2.line = line;
+    _this2.column = column;
+    return _this2;
+  }
+  (0, _inherits2["default"])(PositionedError, _SnowFallBaseError);
+  return (0, _createClass2["default"])(PositionedError);
+}(SnowFallBaseError);
+var SimpleError = exports.SimpleError = function (_SnowFallBaseError2) {
+  function SimpleError(message) {
+    (0, _classCallCheck2["default"])(this, SimpleError);
+    return _callSuper(this, SimpleError, [message]);
+  }
+  (0, _inherits2["default"])(SimpleError, _SnowFallBaseError2);
+  return (0, _createClass2["default"])(SimpleError);
+}(SnowFallBaseError);
+var LexerError = exports.LexerError = function (_PositionedError) {
   function LexerError() {
     (0, _classCallCheck2["default"])(this, LexerError);
     return _callSuper(this, LexerError, arguments);
   }
-  (0, _inherits2["default"])(LexerError, _ErrorBase);
+  (0, _inherits2["default"])(LexerError, _PositionedError);
   return (0, _createClass2["default"])(LexerError);
-}(ErrorBase);
-var ParserError = exports.ParserError = function (_ErrorBase2) {
+}(PositionedError);
+var ParserError = exports.ParserError = function (_PositionedError2) {
   function ParserError() {
     (0, _classCallCheck2["default"])(this, ParserError);
     return _callSuper(this, ParserError, arguments);
   }
-  (0, _inherits2["default"])(ParserError, _ErrorBase2);
+  (0, _inherits2["default"])(ParserError, _PositionedError2);
   return (0, _createClass2["default"])(ParserError);
-}(ErrorBase);
-var CompilerError = exports.CompilerError = function (_ErrorBase3) {
+}(PositionedError);
+var CompilerError = exports.CompilerError = function (_PositionedError3) {
   function CompilerError() {
     (0, _classCallCheck2["default"])(this, CompilerError);
     return _callSuper(this, CompilerError, arguments);
   }
-  (0, _inherits2["default"])(CompilerError, _ErrorBase3);
+  (0, _inherits2["default"])(CompilerError, _PositionedError3);
   return (0, _createClass2["default"])(CompilerError);
-}(ErrorBase);
-var VMError = exports.VMError = function (_Error2) {
-  function VMError(messageWithStackTrace) {
-    var _this2;
-    (0, _classCallCheck2["default"])(this, VMError);
-    _this2 = _callSuper(this, VMError, [messageWithStackTrace]);
-    _this2.name = "VMError";
-    var BuiltInError = Error;
-    if (BuiltInError.captureStackTrace) {
-      BuiltInError.captureStackTrace(_this2, _this2.constructor);
-    }
-    return _this2;
+}(PositionedError);
+var SymbolTableError = exports.SymbolTableError = function (_SimpleError) {
+  function SymbolTableError() {
+    (0, _classCallCheck2["default"])(this, SymbolTableError);
+    return _callSuper(this, SymbolTableError, arguments);
   }
-  (0, _inherits2["default"])(VMError, _Error2);
+  (0, _inherits2["default"])(SymbolTableError, _SimpleError);
+  return (0, _createClass2["default"])(SymbolTableError);
+}(SimpleError);
+var VMError = exports.VMError = function (_SnowFallBaseError3) {
+  function VMError(messageWithStackTrace) {
+    (0, _classCallCheck2["default"])(this, VMError);
+    return _callSuper(this, VMError, [messageWithStackTrace]);
+  }
+  (0, _inherits2["default"])(VMError, _SnowFallBaseError3);
   return (0, _createClass2["default"])(VMError);
-}((0, _wrapNativeSuper2["default"])(Error));
+}(SnowFallBaseError);
 
 },{"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/getPrototypeOf":8,"@babel/runtime/helpers/inherits":9,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/possibleConstructorReturn":15,"@babel/runtime/helpers/wrapNativeSuper":22}],27:[function(require,module,exports){
 "use strict";
@@ -2052,12 +2089,12 @@ var OpCode;
   OpCode[OpCode["BUILD_OBJECT"] = 26] = "BUILD_OBJECT";
   OpCode[OpCode["GET_PROPERTY"] = 27] = "GET_PROPERTY";
   OpCode[OpCode["SET_PROPERTY"] = 28] = "SET_PROPERTY";
-  OpCode[OpCode["JUMP"] = 29] = "JUMP";
-  OpCode[OpCode["JUMP_IF_FALSE"] = 30] = "JUMP_IF_FALSE";
-  OpCode[OpCode["LOOP"] = 31] = "LOOP";
-  OpCode[OpCode["CALL"] = 32] = "CALL";
-  OpCode[OpCode["RETURN"] = 33] = "RETURN";
-  OpCode[OpCode["CALL_BUILTIN"] = 34] = "CALL_BUILTIN";
+  OpCode[OpCode["BUILD_TUPLE"] = 29] = "BUILD_TUPLE";
+  OpCode[OpCode["JUMP"] = 30] = "JUMP";
+  OpCode[OpCode["JUMP_IF_FALSE"] = 31] = "JUMP_IF_FALSE";
+  OpCode[OpCode["LOOP"] = 32] = "LOOP";
+  OpCode[OpCode["CALL"] = 33] = "CALL";
+  OpCode[OpCode["RETURN"] = 34] = "RETURN";
   OpCode[OpCode["CHECK_TYPE"] = 35] = "CHECK_TYPE";
   OpCode[OpCode["SETUP_EXCEPTION"] = 36] = "SETUP_EXCEPTION";
   OpCode[OpCode["TEARDOWN_EXCEPTION"] = 37] = "TEARDOWN_EXCEPTION";
@@ -3013,6 +3050,15 @@ var SnowFallVM = exports.SnowFallVM = function () {
     (0, _defineProperty2["default"])(this, "handlerStack", []);
     this.settings = settings;
     console.log(entryFunction);
+    for (var name in settings.builtInFunctions) {
+      var _func = settings.builtInFunctions[name];
+      var builtin = {
+        type: "builtin",
+        name: name,
+        func: _func
+      };
+      this.globals.set(name, builtin);
+    }
     var func = this.decompressData(entryFunction);
     this.stack.push(func);
     var frame = {
@@ -3143,6 +3189,17 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 this.stack.push(obj);
                 break;
               }
+            case _opcodes.OpCode.BUILD_TUPLE:
+              {
+                var _itemCount = this.readByte();
+                var tuple = this.stack.splice(this.stack.length - _itemCount, _itemCount);
+                Object.defineProperty(tuple, SnowFallVM.TUPLE_MARKER, {
+                  value: true
+                });
+                Object.freeze(tuple);
+                this.stack.push(tuple);
+                break;
+              }
             case _opcodes.OpCode.GET_PROPERTY:
               {
                 var property = this.stack.pop();
@@ -3157,6 +3214,9 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var _property = this.stack.pop();
                 var _object = this.stack.pop();
                 if (_object === null || _object === undefined) throw this.runtimeError("Cannot set property of null or undefined.");
+                if (_object[SnowFallVM.TUPLE_MARKER]) {
+                  throw this.runtimeError("Cannot modify a tuple, as it is immutable.");
+                }
                 _object[_property] = _value3;
                 this.stack.push(_value3);
                 break;
@@ -3291,49 +3351,45 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var argCount = this.readByte();
                 var calleeIndex = this.stack.length - 1 - argCount;
                 var callee = this.stack[calleeIndex];
-                if (!(callee && (0, _typeof2["default"])(callee) === "object" && callee.arity !== undefined)) {
-                  throw this.runtimeError("Can only call functions.");
+                if (callee && (0, _typeof2["default"])(callee) === "object") {
+                  if (callee.type === "builtin") {
+                    var builtin = callee;
+                    var args = this.stack.splice(calleeIndex + 1, argCount);
+                    this.stack.pop();
+                    var result = builtin.func.apply(builtin, (0, _toConsumableArray2["default"])(args));
+                    this.stack.push(result === undefined ? null : result);
+                    break;
+                  }
+                  if (callee.arity !== undefined) {
+                    if (argCount > callee.arity) {
+                      throw this.runtimeError("Expected at most ".concat(callee.arity, " arguments but got ").concat(argCount, "."));
+                    }
+                    for (var _i = argCount; _i < callee.arity; _i++) {
+                      this.stack.push(undefined);
+                    }
+                    var func = this.decompressData(callee);
+                    var newFrame = {
+                      func: func,
+                      ip: 0,
+                      stackStart: calleeIndex
+                    };
+                    this.frames.push(newFrame);
+                    this.frame = newFrame;
+                    break;
+                  }
                 }
-                if (argCount > callee.arity) {
-                  throw this.runtimeError("Expected at most ".concat(callee.arity, " arguments but got ").concat(argCount, "."));
-                }
-                for (var _i = argCount; _i < callee.arity; _i++) {
-                  this.stack.push(null);
-                }
-                var func = this.decompressData(callee);
-                var newFrame = {
-                  func: func,
-                  ip: 0,
-                  stackStart: calleeIndex
-                };
-                this.frames.push(newFrame);
-                this.frame = newFrame;
-                break;
+                throw this.runtimeError("Can only call functions.");
               }
             case _opcodes.OpCode.RETURN:
               {
-                var result = this.stack.pop();
+                var _result = this.stack.pop();
                 var frameToPop = this.frames.pop();
                 if (this.frames.length === 0) {
-                  return result;
+                  return _result;
                 }
-                this.stack.splice(frameToPop.stackStart);
-                this.stack.push(result);
+                this.stack.length = frameToPop.stackStart;
+                this.stack.push(_result);
                 this.frame = this.frames[this.frames.length - 1];
-                break;
-              }
-            case _opcodes.OpCode.CALL_BUILTIN:
-              {
-                var funcName = this.readConstant();
-                var _argCount = this.readByte();
-                var args = this.stack.splice(this.stack.length - _argCount, _argCount);
-                var _func = this.settings.builtInFunctions[funcName];
-                if (_func) {
-                  var _result = _func.apply(void 0, (0, _toConsumableArray2["default"])(args));
-                  this.stack.push(_result === undefined ? null : _result);
-                } else {
-                  throw this.runtimeError("this.runtimeErrorBuilt-in function ".concat(funcName, " not found."));
-                }
                 break;
               }
             case _opcodes.OpCode.SETUP_EXCEPTION:
@@ -3356,7 +3412,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
           }
         }
       } catch (error) {
-        if (error instanceof _errors.VMError || error instanceof _errors.ErrorBase) {
+        if (error instanceof _errors.SnowFallBaseError) {
           console.error("".concat(error.name, ": ").concat(error.message));
         } else {
           console.error(error.message);
@@ -3379,6 +3435,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
     }
   }]);
 }();
+(0, _defineProperty2["default"])(SnowFallVM, "TUPLE_MARKER", Symbol("isTuple"));
 
 },{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/toConsumableArray":17,"@babel/runtime/helpers/typeof":20}]},{},[28])
 //# sourceMappingURL=SnowFall.js.map

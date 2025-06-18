@@ -45,6 +45,7 @@ export enum OpCode {
 	BUILD_OBJECT,
 	GET_PROPERTY,
 	SET_PROPERTY,
+	BUILD_TUPLE,
 
 	// 制御フロー
 	JUMP,
@@ -54,9 +55,6 @@ export enum OpCode {
 	// 関数
 	CALL,
 	RETURN,
-
-	// 外部連携
-	CALL_BUILTIN,
 
 	// 型チェックと例外処理
 	CHECK_TYPE, // 実行時型チェック

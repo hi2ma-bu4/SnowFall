@@ -1,4 +1,4 @@
-import { ErrorBase, VMError } from "../const/errors";
+import { SnowFallBaseError, VMError } from "../const/errors";
 import { OpCode } from "../const/opcodes";
 import { CompactCompiledFunction, CompiledFunction, CompiledOutputType, SnowFallSettings } from "../const/types";
 import { Compressor } from "../util/compressor";
@@ -9,6 +9,13 @@ interface CallFrame {
 	stackStart: number;
 }
 
+// Represents a callable built-in function in the VM
+interface BuiltinFunctionObject {
+	type: "builtin";
+	name: string;
+	func: Function;
+}
+
 interface ExceptionHandler {
 	catchAddress: number;
 	finallyAddress: number | null;
@@ -16,6 +23,9 @@ interface ExceptionHandler {
 }
 
 export class SnowFallVM {
+	// A unique symbol to mark arrays as immutable tuples
+	private static readonly TUPLE_MARKER = Symbol("isTuple");
+
 	private settings: SnowFallSettings;
 
 	private frames: CallFrame[] = [];
@@ -29,6 +39,13 @@ export class SnowFallVM {
 	constructor(entryFunction: CompiledOutputType, settings: SnowFallSettings) {
 		this.settings = settings;
 		console.log(entryFunction);
+
+		// Register all built-in functions as global variables
+		for (const name in settings.builtInFunctions) {
+			const func = settings.builtInFunctions[name];
+			const builtin: BuiltinFunctionObject = { type: "builtin", name, func };
+			this.globals.set(name, builtin);
+		}
 
 		// Initial setup
 		const func = this.decompressData(entryFunction);
@@ -72,7 +89,6 @@ export class SnowFallVM {
 						const expectedType = this.readConstant().toLowerCase();
 						const value = this.stack[this.stack.length - 1]; // peek
 
-						// TODO:本来はnull
 						// Allow undefined for declarations without initializers.
 						if (value === undefined) {
 							break;
@@ -158,6 +174,14 @@ export class SnowFallVM {
 						this.stack.push(obj);
 						break;
 					}
+					case OpCode.BUILD_TUPLE: {
+						const itemCount = this.readByte();
+						const tuple = this.stack.splice(this.stack.length - itemCount, itemCount);
+						Object.defineProperty(tuple, SnowFallVM.TUPLE_MARKER, { value: true });
+						Object.freeze(tuple);
+						this.stack.push(tuple);
+						break;
+					}
 					case OpCode.GET_PROPERTY: {
 						const property = this.stack.pop();
 						const object = this.stack.pop();
@@ -170,6 +194,9 @@ export class SnowFallVM {
 						const property = this.stack.pop();
 						const object = this.stack.pop();
 						if (object === null || object === undefined) throw this.runtimeError("Cannot set property of null or undefined.");
+						if (object[SnowFallVM.TUPLE_MARKER]) {
+							throw this.runtimeError("Cannot modify a tuple, as it is immutable.");
+						}
 						object[property] = value;
 						this.stack.push(value); // Assignment expression returns the assigned value
 						break;
@@ -301,23 +328,36 @@ export class SnowFallVM {
 						const calleeIndex = this.stack.length - 1 - argCount;
 						const callee = this.stack[calleeIndex];
 
-						if (!(callee && typeof callee === "object" && callee.arity !== undefined)) {
-							throw this.runtimeError("Can only call functions.");
-						}
-						if (argCount > callee.arity) {
-							throw this.runtimeError(`Expected at most ${callee.arity} arguments but got ${argCount}.`);
-						}
+						if (callee && typeof callee === "object") {
+							// Handle built-in function call
+							if (callee.type === "builtin") {
+								const builtin = callee as BuiltinFunctionObject;
+								const args = this.stack.splice(calleeIndex + 1, argCount);
+								this.stack.pop(); // Pop the callee
+								const result = builtin.func(...args);
+								this.stack.push(result === undefined ? null : result);
+								break;
+							}
 
-						// Pad arguments with null if they were not provided
-						for (let i = argCount; i < callee.arity; i++) {
-							this.stack.push(null);
-						}
+							// Handle user-defined function call
+							if (callee.arity !== undefined) {
+								if (argCount > callee.arity) {
+									throw this.runtimeError(`Expected at most ${callee.arity} arguments but got ${argCount}.`);
+								}
 
-						const func = this.decompressData(callee);
-						const newFrame = { func, ip: 0, stackStart: calleeIndex };
-						this.frames.push(newFrame);
-						this.frame = newFrame;
-						break;
+								// Pad arguments with null if they were not provided
+								for (let i = argCount; i < callee.arity; i++) {
+									this.stack.push(undefined);
+								}
+
+								const func = this.decompressData(callee);
+								const newFrame = { func, ip: 0, stackStart: calleeIndex };
+								this.frames.push(newFrame);
+								this.frame = newFrame;
+								break;
+							}
+						}
+						throw this.runtimeError("Can only call functions.");
 					}
 
 					case OpCode.RETURN: {
@@ -326,24 +366,9 @@ export class SnowFallVM {
 						if (this.frames.length === 0) {
 							return result; // End of script
 						}
-						this.stack.splice(frameToPop!.stackStart);
+						this.stack.length = frameToPop!.stackStart;
 						this.stack.push(result);
 						this.frame = this.frames[this.frames.length - 1];
-						break;
-					}
-
-					case OpCode.CALL_BUILTIN: {
-						const funcName = this.readConstant();
-						const argCount = this.readByte();
-						const args = this.stack.splice(this.stack.length - argCount, argCount);
-
-						const func = this.settings.builtInFunctions[funcName];
-						if (func) {
-							const result = func(...args);
-							this.stack.push(result === undefined ? null : result); // Always push something
-						} else {
-							throw this.runtimeError(`this.runtimeErrorBuilt-in function ${funcName} not found.`);
-						}
 						break;
 					}
 
@@ -368,7 +393,7 @@ export class SnowFallVM {
 			}
 		} catch (error: any) {
 			// VM内部で発生したエラー（runtimeError以外）もスタックトレースを付けて表示
-			if (error instanceof VMError || error instanceof ErrorBase) {
+			if (error instanceof SnowFallBaseError) {
 				console.error(`${error.name}: ${error.message}`);
 			} else {
 				console.error(error.message);

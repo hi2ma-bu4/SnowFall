@@ -1,4 +1,4 @@
-import { CompilerError } from "../const/errors";
+import { CompilerError, SymbolTableError } from "../const/errors";
 import { OpCode } from "../const/opcodes";
 import {
 	AnyAstNode,
@@ -27,6 +27,7 @@ import {
 	StringLiteralNode,
 	SwitchStatementNode,
 	TryStatementNode,
+	TupleLiteralNode,
 	UnaryExpressionNode,
 	UpdateExpressionNode,
 	VariableDeclarationNode,
@@ -53,11 +54,18 @@ class SymbolTable {
 	}
 
 	define(name: string, depth: number, isConst: boolean): SymbolValue {
+		if (this.store.has(name)) {
+			throw new SymbolTableError(`Identifier '${name}' has already been declared in this scope.`);
+		}
 		const index = this.parentLocalCount + this.localCount;
 		const symbol = new SymbolValue(name, depth, index, isConst);
 		this.store.set(name, symbol);
 		this.localCount++;
 		return symbol;
+	}
+
+	has(name: string): boolean {
+		return this.store.has(name);
 	}
 
 	resolve(name: string): SymbolValue | null {
@@ -107,8 +115,6 @@ export class Compiler {
 		// Reserve stack slot 0 for the function/script itself.
 		if (isFunction) {
 			this.symbolTable.define(funcName, this.scopeDepth, true);
-		} else {
-			this.symbolTable.define("main", this.scopeDepth, true);
 		}
 
 		// For functions, define params in symbol table and add type checks
@@ -118,10 +124,12 @@ export class Compiler {
 				// Define param in symbol table
 				const paramSymbol = this.symbolTable.define(p.name.name, this.scopeDepth, false);
 
+				const paramIndex = paramSymbol.index;
+
 				// --- Handle default parameter values ---
 				if (p.defaultValue) {
 					// Check if the parameter was provided (it will be null if not)
-					this.emitBytes(OpCode.GET_LOCAL, paramSymbol.index);
+					this.emitBytes(OpCode.GET_LOCAL, paramIndex);
 					this.emit(OpCode.PUSH_NULL);
 					this.emit(OpCode.EQUAL);
 					const jumpIfProvided = this.emitJump(OpCode.JUMP_IF_FALSE);
@@ -129,7 +137,7 @@ export class Compiler {
 					// If we are here, parameter was null, so assign default value
 					this.emit(OpCode.POP); // Pop the 'true' from the comparison
 					this.compileNode(p.defaultValue); // Evaluate the default value expression
-					this.emitBytes(OpCode.SET_LOCAL, paramSymbol.index); // Assign it
+					this.emitBytes(OpCode.SET_LOCAL, paramIndex); // Assign it
 					this.emit(OpCode.POP); // Pop the value left by SET_LOCAL
 					const jumpToEnd = this.emitJump(OpCode.JUMP);
 
@@ -144,9 +152,9 @@ export class Compiler {
 				if (p.typeAnnotation) {
 					const typeName = p.typeAnnotation.name;
 					if (typeName.toLowerCase() !== "any") {
-						this.emitBytes(OpCode.GET_LOCAL, paramSymbol.index); // Get the parameter's value
+						this.emitBytes(OpCode.GET_LOCAL, paramIndex); // Get the parameter's value
 						this.emitBytes(OpCode.CHECK_TYPE, this.addConstant(typeName));
-						// CHECK_TYPE does not pop the value, so we don't need to do anything here
+						this.emit(OpCode.POP);
 					}
 				}
 			});
@@ -257,6 +265,9 @@ export class Compiler {
 			case "ObjectLiteral":
 				this.compileObjectLiteral(node as ObjectLiteralNode);
 				break;
+			case "TupleLiteral":
+				this.compileTupleLiteral(node as TupleLiteralNode);
+				break;
 			case "IfStatement":
 				this.compileIfStatement(node as IfStatementNode);
 				break;
@@ -317,6 +328,10 @@ export class Compiler {
 	}
 
 	private compileVariableDeclaration(node: VariableDeclarationNode): void {
+		if (this.symbolTable.has(node.identifier.name)) {
+			throw new CompilerError(`Variable '${node.identifier.name}' already declared in this scope.`, node.identifier.line, node.identifier.column);
+		}
+
 		if (node.init) {
 			this.compileNode(node.init);
 		} else {
@@ -334,8 +349,9 @@ export class Compiler {
 			}
 		}
 
+		// If the variable is global, emit DEFINE_GLOBAL.
+		// For local variables, they just live on the stack.
 		if (this.scopeDepth === 0) {
-			// Global
 			this.emitBytes(OpCode.DEFINE_GLOBAL, this.addConstant(node.identifier.name));
 		} else {
 			// Local
@@ -344,17 +360,12 @@ export class Compiler {
 	}
 
 	private compileIdentifier(node: IdentifierNode): void {
-		if (this.settings.builtInFunctions[node.name]) {
-			// It's a built-in function
-			return;
-		}
-
 		const symbol = this.symbolTable.resolve(node.name);
 		if (symbol) {
-			// It's a local variable
+			// Local variable
 			this.emitBytes(OpCode.GET_LOCAL, symbol.index);
 		} else {
-			// Assume it's a global
+			// Assume it's a global variable. Let VM handle undefined error.
 			this.emitBytes(OpCode.GET_GLOBAL, this.addConstant(node.name));
 		}
 	}
@@ -368,8 +379,15 @@ export class Compiler {
 				if (symbol.isConst) {
 					throw new CompilerError(`Cannot assign to constant variable '${name}'.`, node.left.line, node.left.column);
 				}
-				this.emitBytes(OpCode.SET_LOCAL, symbol.index);
+				if (symbol.depth === 0) {
+					// Global variable
+					this.emitBytes(OpCode.SET_GLOBAL, this.addConstant(name));
+				} else {
+					// Local variable
+					this.emitBytes(OpCode.SET_LOCAL, symbol.index);
+				}
 			} else {
+				// Implicitly define a global variable
 				this.emitBytes(OpCode.SET_GLOBAL, this.addConstant(name));
 			}
 		} else if (node.left.type === "MemberExpression") {
@@ -391,18 +409,26 @@ export class Compiler {
 		}
 		const symbol = this.symbolTable.resolve(argument.name);
 
-		// ローカル変数かグローバル変数かを判断して処理を分岐
-		const isLocal = !!symbol;
-
-		if (isLocal && symbol.isConst) {
+		if (symbol && symbol.isConst) {
 			throw new CompilerError(`Cannot assign to constant variable '${argument.name}'.`, argument.line, argument.column);
 		}
 
-		// 変数の種類に応じて適切なオペコードと引数を設定
-		const getOp = isLocal ? OpCode.GET_LOCAL : OpCode.GET_GLOBAL;
-		const getArg = isLocal ? symbol.index : this.addConstant(argument.name);
-		const setOp = isLocal ? OpCode.SET_LOCAL : OpCode.SET_GLOBAL;
-		const setArg = isLocal ? symbol.index : this.addConstant(argument.name);
+		let getOp: OpCode, getArg: number, setOp: OpCode, setArg: number;
+		const isGlobal = !symbol || symbol.depth === 0;
+
+		if (isGlobal) {
+			const constIndex = this.addConstant(argument.name);
+			getOp = OpCode.GET_GLOBAL;
+			getArg = constIndex;
+			setOp = OpCode.SET_GLOBAL;
+			setArg = constIndex;
+		} else {
+			// Local
+			getOp = OpCode.GET_LOCAL;
+			getArg = symbol.index;
+			setOp = OpCode.SET_LOCAL;
+			setArg = symbol.index;
+		}
 
 		// 1. 変数の現在の値を取得してスタックにプッシュ
 		this.emitBytes(getOp, getArg);
@@ -410,7 +436,7 @@ export class Compiler {
 		// 2. ポストフィックス (i++) の場合、インクリメント前の値をスタックに残すため、
 		//    値を取得してプッシュする
 		if (!prefix) {
-			this.emitBytes(getOp, getArg);
+			this.emit(OpCode.DUP);
 		}
 		// 3. インクリメント/デクリメントを実行
 		this.emitConstant(1);
@@ -432,10 +458,15 @@ export class Compiler {
 
 	private compileObjectLiteral(node: ObjectLiteralNode): void {
 		node.properties.forEach((prop) => {
-			this.emitConstant((prop.key as StringLiteralNode).value);
+			this.emitConstant(prop.key.type === "Identifier" ? prop.key.name : prop.key.value);
 			this.compileNode(prop.value);
 		});
 		this.emitBytes(OpCode.BUILD_OBJECT, node.properties.length);
+	}
+
+	private compileTupleLiteral(node: TupleLiteralNode): void {
+		node.elements.forEach((el) => this.compileNode(el));
+		this.emitBytes(OpCode.BUILD_TUPLE, node.elements.length);
 	}
 
 	private compileMemberExpression(node: MemberExpressionNode): void {
@@ -574,6 +605,7 @@ export class Compiler {
 			this.emit(OpCode.POP);
 		}
 
+		// Compile default case if it exists
 		if (defaultCase) {
 			this.compileStatements(defaultCase.consequent);
 		}
@@ -598,6 +630,7 @@ export class Compiler {
 
 		const compressed = compiler.compile();
 		let useConstant;
+		// If the compressed version is smaller, use it
 		if (JSON.stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < JSON.stringify(compiler.compiledFunction).length) {
 			useConstant = compressed;
 		} else {
@@ -644,13 +677,7 @@ export class Compiler {
 			this.compileNode(arg);
 		}
 
-		// Check if it's a built-in function
-		if (node.callee.type === "Identifier" && this.settings.builtInFunctions[(node.callee as IdentifierNode).name]) {
-			const funcNameIndex = this.addConstant((node.callee as IdentifierNode).name);
-			this.emitBytes(OpCode.CALL_BUILTIN, funcNameIndex, node.arguments.length);
-		} else {
-			this.emitBytes(OpCode.CALL, node.arguments.length);
-		}
+		this.emitBytes(OpCode.CALL, node.arguments.length);
 	}
 
 	private compileUnaryExpression(node: UnaryExpressionNode): void {

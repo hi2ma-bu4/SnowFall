@@ -64,8 +64,7 @@ document.addEventListener("keydown", function (ev) {
 	e.setRangeText(v.join("\n"), start, end, "select");
 });
 
-// functionのreturnを動作させる
-// 型定義は持続させる&undefinedはどの型でも許容する
+// 型定義は持続させる、タプルを使用できるように
 // TODO: 配列、連想配列、タプルは独自型を作成
 
 const DEFAULT_CODE = `
@@ -84,7 +83,7 @@ print(greet);
 print(repeatStr * 3); // "hahaha"
 
 // 関数：文字列を繰り返して返す
-function repeatStrFunc(s, times) {
+function repeatStrFunc(s:string, times:number) {
   let result:string = "";
   for (let i=0; i<times; i=i+1) {
     result = result + s;
@@ -189,7 +188,7 @@ print(arr4);
 print(arr5);
 
 // さらに関数の呼び出し例
-function greetUser(name) {
+function greetUser(name:string) {
   print("Hello, " + name + "!");
 }
 

@@ -32,6 +32,9 @@ export class Lexer {
 	};
 
 	constructor(source: string) {
+		if (source === "") {
+			source = " ";
+		}
 		this.source = source;
 		this.currentChar = this.source[this.pos];
 	}
