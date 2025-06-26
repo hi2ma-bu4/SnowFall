@@ -225,6 +225,7 @@ var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/cl
 var _errors = require("../const/errors");
 var _opcodes = require("../const/opcodes");
 var _compressor = require("../util/compressor");
+var _jsonextended = _interopRequireDefault(require("../util/jsonextended"));
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
@@ -306,8 +307,6 @@ var Compiler = exports.Compiler = function () {
     };
     if (isFunction) {
       this.symbolTable.define(funcName, this.scopeDepth, true);
-    }
-    if (isFunction) {
       funcNode.params.forEach(function (p, index) {
         var paramSymbol = _this.symbolTable.define(p.name.name, _this.scopeDepth, false);
         var paramIndex = paramSymbol.index;
@@ -449,11 +448,17 @@ var Compiler = exports.Compiler = function () {
         case "NumericLiteral":
           this.emitConstant(node.value);
           break;
+        case "BigIntLiteral":
+          this.emitConstant(BigInt(node.value));
+          break;
         case "StringLiteral":
           this.emitConstant(node.value);
           break;
         case "BooleanLiteral":
           this.emit(node.value ? _opcodes.OpCode.PUSH_TRUE : _opcodes.OpCode.PUSH_FALSE);
+          break;
+        case "NullLiteral":
+          this.emit(_opcodes.OpCode.PUSH_NULL);
           break;
         case "ArrayLiteral":
           this.compileArrayLiteral(node);
@@ -819,7 +824,7 @@ var Compiler = exports.Compiler = function () {
       var compiler = new Compiler(node, this.settings, this);
       var compressed = compiler.compile();
       var useConstant;
-      if (JSON.stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < JSON.stringify(compiler.compiledFunction).length) {
+      if (_jsonextended["default"].stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < _jsonextended["default"].stringify(compiler.compiledFunction).length) {
         useConstant = compressed;
       } else {
         useConstant = compiler.compiledFunction;
@@ -1030,7 +1035,7 @@ var Compiler = exports.Compiler = function () {
 }();
 (0, _defineProperty2["default"])(Compiler, "FUNCTION_COMPRESS_MAGNIFICATION", 4);
 
-},{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],24:[function(require,module,exports){
+},{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"../util/jsonextended":38,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],24:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -1063,6 +1068,7 @@ var Lexer = exports.Lexer = function () {
       "return": "KEYWORD",
       "true": "TRUE",
       "false": "FALSE",
+      "null": "NULL",
       "try": "KEYWORD",
       "catch": "KEYWORD",
       "finally": "KEYWORD",
@@ -1099,11 +1105,19 @@ var Lexer = exports.Lexer = function () {
       this.advance();
       var result = "";
       while (this.currentChar !== quoteChar && this.currentChar !== null) {
-        if (this.currentChar === "\n" && quoteChar !== "`") {
-          throw new _errors.LexerError("Unterminated string at line ".concat(startLine, ", column ").concat(startColumn, "."), startLine, startColumn);
+        if (this.currentChar === "\\") {
+          this.advance();
+          if (this.currentChar !== null) {
+            result += this.currentChar;
+            this.advance();
+          }
+        } else {
+          if (this.currentChar === "\n" && quoteChar !== "`") {
+            throw new _errors.LexerError("Unterminated string at line ".concat(startLine, ", column ").concat(startColumn, "."), startLine, startColumn);
+          }
+          result += this.currentChar;
+          this.advance();
         }
-        result += this.currentChar;
-        this.advance();
       }
       if (this.currentChar === null) {
         throw new _errors.LexerError("Unterminated string.", startLine, startColumn);
@@ -1114,18 +1128,54 @@ var Lexer = exports.Lexer = function () {
   }, {
     key: "number",
     value: function number() {
+      if (this.currentChar === "0" && this.peek() && /[bdx]/.test(this.peek())) {
+        this.advance();
+        var baseChar = this.currentChar;
+        this.advance();
+        var base;
+        var validDigits;
+        switch (baseChar) {
+          case "b":
+            base = 2;
+            validDigits = /[01]/;
+            break;
+          case "d":
+            base = 10;
+            validDigits = /\d/;
+            break;
+          case "x":
+            base = 16;
+            validDigits = /[0-9a-fA-F]/;
+            break;
+          default:
+            throw new _errors.LexerError("Invalid numeric prefix '0".concat(baseChar, "'"), this.line, this.column);
+        }
+        var digits = "";
+        while (this.currentChar !== null && validDigits.test(this.currentChar)) {
+          digits += this.currentChar;
+          this.advance();
+        }
+        if (digits.length === 0) {
+          throw new _errors.LexerError("Number literal has no digits after prefix '0".concat(baseChar, "'"), this.line, this.column);
+        }
+        var value = parseInt(digits, base);
+        return this.createToken("NUMBER", String(value));
+      }
       var result = "";
       while (this.currentChar !== null && /\d/.test(this.currentChar)) {
         result += this.currentChar;
         this.advance();
       }
-      if (this.currentChar === "." && this.peek() !== null && /\d/.test(this.peek())) {
+      if (this.currentChar === ".") {
         result += this.currentChar;
         this.advance();
         while (this.currentChar !== null && /\d/.test(this.currentChar)) {
           result += this.currentChar;
           this.advance();
         }
+      } else if (this.currentChar === "n") {
+        this.advance();
+        return this.createToken("BIGINT", result);
       }
       return this.createToken("NUMBER", result);
     }
@@ -1341,6 +1391,11 @@ var Parser = exports.Parser = function () {
         value: parseFloat(_this.currentToken.value)
       });
     });
+    (0, _defineProperty2["default"])(this, "parseBigIntLiteral", function () {
+      return _this.createNode("BigIntLiteral", {
+        value: _this.currentToken.value
+      });
+    });
     (0, _defineProperty2["default"])(this, "parseStringLiteral", function () {
       return _this.createNode("StringLiteral", {
         value: _this.currentToken.value
@@ -1350,6 +1405,9 @@ var Parser = exports.Parser = function () {
       return _this.createNode("BooleanLiteral", {
         value: _this.currentToken.type === "TRUE"
       });
+    });
+    (0, _defineProperty2["default"])(this, "parseNullLiteral", function () {
+      return _this.createNode("NullLiteral", {});
     });
     (0, _defineProperty2["default"])(this, "parseAssignmentExpression", function (left) {
       if (left.type !== "Identifier" && left.type !== "MemberExpression") {
@@ -1774,9 +1832,11 @@ var Parser = exports.Parser = function () {
     this.prefixParseFns = new Map();
     this.registerPrefix("IDENTIFIER", this.parseIdentifier);
     this.registerPrefix("NUMBER", this.parseNumericLiteral);
+    this.registerPrefix("BIGINT", this.parseBigIntLiteral);
     this.registerPrefix("STRING", this.parseStringLiteral);
     this.registerPrefix("TRUE", this.parseBooleanLiteral);
     this.registerPrefix("FALSE", this.parseBooleanLiteral);
+    this.registerPrefix("NULL", this.parseNullLiteral);
     this.registerPrefix("BANG", this.parsePrefixExpression);
     this.registerPrefix("MINUS", this.parsePrefixExpression);
     this.registerPrefix("PLUS_PLUS", this.parseUpdateExpression);
@@ -2729,7 +2789,7 @@ var SnowFall = exports.SnowFall = {
   compileAndRun: compileAndRun
 };
 
-},{"./compiler/compiler":23,"./compiler/libs/lexer":24,"./compiler/libs/parser":25,"./vm/vm":38}],35:[function(require,module,exports){
+},{"./compiler/compiler":23,"./compiler/libs/lexer":24,"./compiler/libs/parser":25,"./vm/vm":39}],35:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2742,6 +2802,7 @@ var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/creat
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
 var _index = _interopRequireDefault(require("../libs/lzbase62/src/index"));
 var _smartpack = _interopRequireDefault(require("./compressor/smartpack"));
+var _jsonextended = _interopRequireDefault(require("./jsonextended"));
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
@@ -2800,7 +2861,7 @@ var Compressor = exports.Compressor = function () {
   }, {
     key: "encodeJSON",
     value: function encodeJSON(data) {
-      return this.encodeString(JSON.stringify(data));
+      return this.encodeString(_jsonextended["default"].stringify(data));
     }
   }, {
     key: "encodeString",
@@ -2841,7 +2902,7 @@ var Compressor = exports.Compressor = function () {
   }, {
     key: "decodeJSON",
     value: function decodeJSON(str) {
-      return JSON.parse(this.decodeString(str));
+      return _jsonextended["default"].parse(this.decodeString(str));
     }
   }, {
     key: "decodeString",
@@ -2853,7 +2914,7 @@ var Compressor = exports.Compressor = function () {
 (0, _defineProperty2["default"])(Compressor, "BYTE_MASK", 0x7f);
 (0, _defineProperty2["default"])(Compressor, "BYTE_MSB", 0x80);
 
-},{"../libs/lzbase62/src/index":32,"./compressor/smartpack":37,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],36:[function(require,module,exports){
+},{"../libs/lzbase62/src/index":32,"./compressor/smartpack":37,"./jsonextended":38,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],36:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -3032,6 +3093,92 @@ var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefau
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+exports["default"] = void 0;
+var _typeof2 = _interopRequireDefault(require("@babel/runtime/helpers/typeof"));
+function stringify(obj) {
+  return JSON.stringify(obj, function (_, value) {
+    if (typeof value === "bigint") {
+      return {
+        __type: "BigInt",
+        value: value.toString()
+      };
+    }
+    if (value instanceof Date) {
+      return {
+        __type: "Date",
+        value: value.toISOString()
+      };
+    }
+    if (value instanceof Map) {
+      return {
+        __type: "Map",
+        value: Array.from(value.entries())
+      };
+    }
+    if (value instanceof Set) {
+      return {
+        __type: "Set",
+        value: Array.from(value)
+      };
+    }
+    if (typeof value === "number" && !isFinite(value)) {
+      var repr = "NaN";
+      if (value === Infinity) repr = "Infinity";
+      if (value === -Infinity) repr = "-Infinity";
+      return {
+        __type: "Number",
+        value: repr
+      };
+    }
+    if (typeof value === "undefined") {
+      return {
+        __type: "Undefined"
+      };
+    }
+    return value;
+  });
+}
+function parse(json) {
+  return JSON.parse(json, function (_, value) {
+    if (value && (0, _typeof2["default"])(value) === "object" && "__type" in value) {
+      switch (value.__type) {
+        case "BigInt":
+          return BigInt(value.value);
+        case "Date":
+          return new Date(value.value);
+        case "Map":
+          return new Map(value.value);
+        case "Set":
+          return new Set(value.value);
+        case "Number":
+          switch (value.value) {
+            case "NaN":
+              return NaN;
+            case "Infinity":
+              return Infinity;
+            case "-Infinity":
+              return -Infinity;
+          }
+          break;
+        case "Undefined":
+          return undefined;
+      }
+    }
+    return value;
+  });
+}
+var _default = exports["default"] = {
+  stringify: stringify,
+  parse: parse
+};
+
+},{"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],39:[function(require,module,exports){
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
 exports.SnowFallVM = void 0;
 var _toConsumableArray2 = _interopRequireDefault(require("@babel/runtime/helpers/toConsumableArray"));
 var _typeof2 = _interopRequireDefault(require("@babel/runtime/helpers/typeof"));
@@ -3109,12 +3256,15 @@ var SnowFallVM = exports.SnowFallVM = function () {
               {
                 var expectedType = this.readConstant().toLowerCase();
                 var _value = this.stack[this.stack.length - 1];
+                if (expectedType === "any") {
+                  break;
+                }
                 if (_value === undefined) {
                   break;
                 }
                 var actualType = void 0;
                 if (_value === null) actualType = "null";else if (Array.isArray(_value)) actualType = "array";else actualType = (0, _typeof2["default"])(_value);
-                if (expectedType !== actualType) {
+                if (expectedType !== actualType && actualType !== "null") {
                   throw this.runtimeError("Expected type '".concat(expectedType, "' but got '").concat(actualType, "'."));
                 }
                 break;
@@ -3281,21 +3431,57 @@ var SnowFallVM = exports.SnowFallVM = function () {
               {
                 var _b8 = this.stack.pop();
                 var _a8 = this.stack.pop();
-                if (typeof _a8 === "number" && typeof _b8 === "number") this.stack.push(_a8 + _b8);else if (typeof _a8 === "string" || typeof _b8 === "string") this.stack.push(String(_a8) + String(_b8));else throw this.runtimeError("Operands must be two numbers or at least one string.");
+                if (typeof _a8 === "number" && typeof _b8 === "number") this.stack.push(_a8 + _b8);else if (typeof _a8 === "bigint" && typeof _b8 === "bigint") this.stack.push(_a8 + _b8);else if (typeof _a8 === "string" || typeof _b8 === "string") this.stack.push(String(_a8) + String(_b8));else if (typeof _a8 === "number" && typeof _b8 === "bigint") {
+                  try {
+                    this.stack.push(BigInt(Math.floor(_a8)) + _b8);
+                  } catch (_unused) {
+                    throw this.runtimeError("Cannot multiply non-integer number by BigInt: number=".concat(String(_a8), ", BigInt=").concat(String(_b8)));
+                  }
+                } else if (typeof _a8 === "bigint" && typeof _b8 === "number") {
+                  try {
+                    this.stack.push(_a8 + BigInt(Math.floor(_b8)));
+                  } catch (_unused2) {
+                    throw this.runtimeError("Cannot multiply BigInt by non-integer number: BigInt=".concat(String(_a8), ", number=").concat(String(_b8)));
+                  }
+                } else throw this.runtimeError("Invalid operand types for addition. Received: ".concat((0, _typeof2["default"])(_a8), " + ").concat((0, _typeof2["default"])(_b8)));
                 break;
               }
             case _opcodes.OpCode.SUBTRACT:
               {
                 var _b9 = this.stack.pop();
                 var _a9 = this.stack.pop();
-                if (typeof _a9 === "number" && typeof _b9 === "number") this.stack.push(_a9 - _b9);else throw this.runtimeError("Operands must be two numbers.");
+                if (typeof _a9 === "number" && typeof _b9 === "number") this.stack.push(_a9 - _b9);else if (typeof _a9 === "bigint" && typeof _b9 === "bigint") this.stack.push(_a9 - _b9);else if (typeof _a9 === "number" && typeof _b9 === "bigint") {
+                  try {
+                    this.stack.push(BigInt(Math.floor(_a9)) - _b9);
+                  } catch (_unused3) {
+                    throw this.runtimeError("Cannot multiply non-integer number by BigInt: number=".concat(String(_a9), ", BigInt=").concat(String(_b9)));
+                  }
+                } else if (typeof _a9 === "bigint" && typeof _b9 === "number") {
+                  try {
+                    this.stack.push(_a9 - BigInt(Math.floor(_b9)));
+                  } catch (_unused4) {
+                    throw this.runtimeError("Cannot multiply BigInt by non-integer number: BigInt=".concat(String(_a9), ", number=").concat(String(_b9)));
+                  }
+                } else throw this.runtimeError("Invalid operand types for subtraction. Received: ".concat((0, _typeof2["default"])(_a9), " - ").concat((0, _typeof2["default"])(_b9)));
                 break;
               }
             case _opcodes.OpCode.MULTIPLY:
               {
                 var _b0 = this.stack.pop();
                 var _a0 = this.stack.pop();
-                if (typeof _a0 === "number" && typeof _b0 === "number") this.stack.push(_a0 * _b0);else if (typeof _a0 === "string" && typeof _b0 === "number") this.stack.push(_a0.repeat(_b0));else if (typeof _a0 === "number" && typeof _b0 === "string") this.stack.push(_b0.repeat(_a0));else throw this.runtimeError("Operands must be two numbers. Or one string and one number.");
+                if (typeof _a0 === "number" && typeof _b0 === "number") this.stack.push(_a0 * _b0);else if (typeof _a0 === "bigint" && typeof _b0 === "bigint") this.stack.push(_a0 * _b0);else if (typeof _a0 === "string" && typeof _b0 === "number") this.stack.push(_a0.repeat(_b0));else if (typeof _a0 === "number" && typeof _b0 === "string") this.stack.push(_b0.repeat(_a0));else if (typeof _a0 === "number" && typeof _b0 === "bigint") {
+                  try {
+                    this.stack.push(BigInt(Math.floor(_a0)) * _b0);
+                  } catch (_unused5) {
+                    throw this.runtimeError("Cannot multiply non-integer number by BigInt: number=".concat(String(_a0), ", BigInt=").concat(String(_b0)));
+                  }
+                } else if (typeof _a0 === "bigint" && typeof _b0 === "number") {
+                  try {
+                    this.stack.push(_a0 * BigInt(Math.floor(_b0)));
+                  } catch (_unused6) {
+                    throw this.runtimeError("Cannot multiply BigInt by non-integer number: BigInt=".concat(String(_a0), ", number=").concat(String(_b0)));
+                  }
+                } else throw this.runtimeError("Invalid operand types for multiplication. Received: ".concat((0, _typeof2["default"])(_a0), " * ").concat((0, _typeof2["default"])(_b0)));
                 break;
               }
             case _opcodes.OpCode.DIVIDE:
@@ -3305,7 +3491,25 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 if (typeof _a1 === "number" && typeof _b1 === "number") {
                   if (_b1 === 0) throw this.runtimeError("Division by zero.");
                   this.stack.push(_a1 / _b1);
-                } else throw this.runtimeError("Operands must be two numbers.");
+                } else if (typeof _a1 === "bigint" && typeof _b1 === "bigint") {
+                  if (_b1 === 0n) throw this.runtimeError("Division by zero.");
+                  this.stack.push(_a1 / _b1);
+                } else if (typeof _a1 === "number" && typeof _b1 === "bigint") {
+                  try {
+                    if (_b1 === 0n) throw this.runtimeError("Division by zero.");
+                    this.stack.push(BigInt(Math.floor(_a1)) / _b1);
+                  } catch (_unused7) {
+                    throw this.runtimeError("Cannot divide non-integer number by BigInt: number=".concat(String(_a1), ", BigInt=").concat(String(_b1)));
+                  }
+                } else if (typeof _a1 === "bigint" && typeof _b1 === "number") {
+                  try {
+                    var b2 = BigInt(Math.floor(_b1));
+                    if (b2 === 0n) throw this.runtimeError("Division by zero.");
+                    this.stack.push(_a1 / b2);
+                  } catch (_unused8) {
+                    throw this.runtimeError("Cannot divide BigInt by non-integer number: BigInt=".concat(String(_a1), ", number=").concat(String(_b1)));
+                  }
+                } else throw this.runtimeError("Invalid operand types for division. Received: ".concat((0, _typeof2["default"])(_a1), " / ").concat((0, _typeof2["default"])(_b1)));
                 break;
               }
             case _opcodes.OpCode.MODULO:
@@ -3313,9 +3517,27 @@ var SnowFallVM = exports.SnowFallVM = function () {
                 var _b10 = this.stack.pop();
                 var _a10 = this.stack.pop();
                 if (typeof _a10 === "number" && typeof _b10 === "number") {
-                  if (_b10 === 0) throw this.runtimeError("Division by zero.");
+                  if (_b10 === 0) throw this.runtimeError("Modulo by zero.");
                   this.stack.push(_a10 % _b10);
-                } else throw this.runtimeError("Operands must be two numbers.");
+                } else if (typeof _a10 === "bigint" && typeof _b10 === "bigint") {
+                  if (_b10 === 0n) throw this.runtimeError("Modulo by zero.");
+                  this.stack.push(_a10 % _b10);
+                } else if (typeof _a10 === "number" && typeof _b10 === "bigint") {
+                  try {
+                    if (_b10 === 0n) throw this.runtimeError("Modulo by zero.");
+                    this.stack.push(BigInt(Math.floor(_a10)) % _b10);
+                  } catch (_unused9) {
+                    throw this.runtimeError("Cannot perform modulo of non-integer number by BigInt. number=".concat(String(_a10), ", BigInt=").concat(String(_b10)));
+                  }
+                } else if (typeof _a10 === "bigint" && typeof _b10 === "number") {
+                  try {
+                    var _b11 = BigInt(Math.floor(_b10));
+                    if (_b11 === 0n) throw this.runtimeError("Modulo by zero.");
+                    this.stack.push(_a10 % _b11);
+                  } catch (_unused0) {
+                    throw this.runtimeError("Cannot perform modulo of BigInt by non-integer number. BigInt=".concat(String(_a10), ", number=").concat(String(_b10)));
+                  }
+                } else throw this.runtimeError("Invalid operand types for modulo. Received: ".concat((0, _typeof2["default"])(_a10), " % ").concat((0, _typeof2["default"])(_b10)));
                 break;
               }
             case _opcodes.OpCode.NEGATE:
@@ -3365,7 +3587,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
                       throw this.runtimeError("Expected at most ".concat(callee.arity, " arguments but got ").concat(argCount, "."));
                     }
                     for (var _i = argCount; _i < callee.arity; _i++) {
-                      this.stack.push(undefined);
+                      this.stack.push(null);
                     }
                     var func = this.decompressData(callee);
                     var newFrame = {

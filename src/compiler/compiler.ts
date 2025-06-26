@@ -4,6 +4,7 @@ import {
 	AnyAstNode,
 	ArrayLiteralNode,
 	AssignmentExpressionNode,
+	BigIntLiteralNode,
 	BinaryExpressionNode,
 	BlockStatementNode,
 	BooleanLiteralNode,
@@ -34,6 +35,7 @@ import {
 	WhileStatementNode,
 } from "../const/types";
 import { Compressor } from "../util/compressor";
+import jsonExtended from "../util/jsonextended";
 
 // -- Symbol Table for Scope Management --
 class SymbolValue {
@@ -112,13 +114,11 @@ export class Compiler {
 
 		this.compiledFunction = { name: funcName, arity, chunk: { code: [], constants: [], lines: [] } };
 
-		// Reserve stack slot 0 for the function/script itself.
-		if (isFunction) {
-			this.symbolTable.define(funcName, this.scopeDepth, true);
-		}
-
 		// For functions, define params in symbol table and add type checks
 		if (isFunction) {
+			// Reserve stack slot 0 for the function/script itself.
+			this.symbolTable.define(funcName, this.scopeDepth, true);
+
 			// Params are not const by default
 			funcNode!.params.forEach((p, index) => {
 				// Define param in symbol table
@@ -253,11 +253,17 @@ export class Compiler {
 			case "NumericLiteral":
 				this.emitConstant((node as NumericLiteralNode).value);
 				break;
+			case "BigIntLiteral":
+				this.emitConstant(BigInt((node as BigIntLiteralNode).value));
+				break;
 			case "StringLiteral":
 				this.emitConstant((node as StringLiteralNode).value);
 				break;
 			case "BooleanLiteral":
 				this.emit((node as BooleanLiteralNode).value ? OpCode.PUSH_TRUE : OpCode.PUSH_FALSE);
+				break;
+			case "NullLiteral":
+				this.emit(OpCode.PUSH_NULL);
 				break;
 			case "ArrayLiteral":
 				this.compileArrayLiteral(node as ArrayLiteralNode);
@@ -631,7 +637,7 @@ export class Compiler {
 		const compressed = compiler.compile();
 		let useConstant;
 		// If the compressed version is smaller, use it
-		if (JSON.stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < JSON.stringify(compiler.compiledFunction).length) {
+		if (jsonExtended.stringify(compressed).length * Compiler.FUNCTION_COMPRESS_MAGNIFICATION < jsonExtended.stringify(compiler.compiledFunction).length) {
 			useConstant = compressed;
 		} else {
 			useConstant = compiler.compiledFunction;

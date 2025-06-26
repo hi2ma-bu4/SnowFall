@@ -6,69 +6,346 @@ try {
 
 jasc.initSetting = {
 	useLib: {
-		beryl: true,
+		//beryl: true,
 	},
 };
-
-document.addEventListener("keydown", function (ev) {
-	if ((ev.key != "Tab" && ev.key != " ") || ev.ctrlKey || ev.altKey) {
-		return true;
-	}
-	ev.preventDefault();
-	const str = ev.key == " " ? " " : "\t",
-		TAB_WIDTH = 4,
-		CRLF = [13, 10];
-	let e = ev.target,
-		start = e.selectionStart,
-		end = e.selectionEnd,
-		sContents = e.value,
-		top = e.scrollTop;
-	if (start == end || !sContents.includes("\n")) {
-		e.setRangeText(str, start, end, "end");
-		return;
-	}
-	if (CRLF.indexOf(sContents.charCodeAt(end - 1)) < 0) {
-		for (; end < sContents.length; end++) {
-			if (CRLF.indexOf(sContents.charCodeAt(end)) >= 0) {
-				break;
-			}
-		}
-	}
-	for (; start > 0; start--) {
-		if (CRLF.indexOf(sContents.charCodeAt(start - 1)) >= 0) {
-			break;
-		}
-	}
-	let v = sContents.substring(start, end).split("\n");
-	for (let i = 0; i < v.length; i++) {
-		if (v[i] == "") {
-			continue;
-		}
-		if (!ev.shiftKey) {
-			//indent
-			v[i] = str + v[i];
-		} else {
-			//unindent
-			if (str == "\t") {
-				for (let j = 0, c = " "; j < TAB_WIDTH && c == " "; j++) {
-					c = v[i].substring(0, 1);
-					if (c == " " || (j == 0 && c == "\t")) {
-						v[i] = v[i].substring(1);
-					}
-				}
-			} else if (v[i].substring(0, 1) == " ") {
-				v[i] = v[i].substring(1);
-			}
-		}
-	}
-	e.setRangeText(v.join("\n"), start, end, "select");
-});
 
 // 型定義は持続させる、タプルを使用できるように
 // グローバル部分もlet変数再定義,const定数再代入を禁止にする,グローバル書き込みのvarを追加する
 // TODO: 配列、連想配列、タプルは独自型を作成
 
-const DEFAULT_CODE = `
+class AppBootStrapper {
+	static start() {
+		require.config({
+			paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs" },
+		});
+		require(["vs/editor/editor.main"], () => {
+			jasc.on("DOMContentLoaded", () => {
+				new SnowFallIDE().init();
+			});
+		});
+	}
+}
+
+class SnowFallIDE {
+	constructor() {
+		this.models = {};
+		this.mainEditor = null;
+		this.outputEditor = null;
+	}
+
+	init() {
+		MonacoConfigurator.configure();
+
+		const fileDefs = this.createFileDefinitions();
+		this.models = EditorModelManager.createModels(fileDefs);
+
+		this.mainEditor = monaco.editor.create(jasc.acq("#code-editor"), {
+			model: this.models["main.sf"],
+			theme: "SnowFallTheme-dark",
+			automaticLayout: true,
+			bracketPairColorization: { enabled: true },
+		});
+
+		this.outputEditor = monaco.editor.create(jasc.acq("#output"), {
+			model: this.models["output/result.txt"],
+			theme: "vs-dark",
+			readOnly: true,
+			automaticLayout: true,
+		});
+		monaco.editor.setTheme("SnowFallTheme-dark");
+
+		window.openFile = (name) => {
+			this.mainEditor.setModel(this.models[name]);
+			this.mainEditor.updateOptions(fileDefs[name].options);
+		};
+
+		this.runMainLogic();
+	}
+
+	createFileDefinitions() {
+		return {
+			"main.sf": {
+				path: "main.sf",
+				language: "SnowFall",
+				content: "",
+				options: {
+					wordWrap: "off",
+					readOnly: false,
+					minimap: { enabled: true },
+				},
+			},
+			"main.sfc": {
+				path: "main.sfc",
+				language: "plaintext",
+				content: "",
+				options: {
+					wordWrap: "on",
+					readOnly: true,
+					minimap: { enabled: false },
+				},
+			},
+			"output/result.txt": {
+				path: "output/result.txt",
+				language: "plaintext",
+				content: "",
+				options: {
+					wordWrap: "off",
+					readOnly: true,
+					minimap: { enabled: false },
+				},
+			},
+		};
+	}
+
+	runMainLogic() {
+		const compileSize = jasc.acq("#compile-size");
+		const runButton = jasc.acq("#run-button");
+		const isCompact = jasc.acq("#is-compact");
+
+		this.models["main.sf"].setValue(SnowFallRunner.defaultCode);
+
+		runButton.addEventListener("click", () => {
+			const source = this.models["main.sf"].getValue();
+			const output = SnowFallRunner.run(source, isCompact.checked);
+
+			this.models["main.sfc"].setValue(output.compiledJson);
+			this.models["output/result.txt"].setValue(output.resultText);
+			compileSize.textContent = output.sizeInfo;
+		});
+	}
+}
+
+class EditorModelManager {
+	static createModels(defs) {
+		const models = {};
+		for (const name in defs) {
+			models[name] = monaco.editor.createModel(defs[name].content, defs[name].language, monaco.Uri.parse(`inmemory://model/${name}`));
+		}
+		return models;
+	}
+}
+
+class MonacoConfigurator {
+	static configure() {
+		this.registerLanguage();
+		this.setTheme();
+		this.setCompletionProvider();
+	}
+
+	static registerLanguage() {
+		monaco.languages.register({
+			id: "SnowFall",
+			extensions: [".sf"],
+			aliases: ["SnowFall", "Snowfall", "snowfall"],
+		});
+
+		monaco.languages.setLanguageConfiguration("SnowFall", {
+			brackets: [
+				["{", "}"],
+				["[", "]"],
+				["(", ")"],
+			],
+		});
+
+		monaco.languages.setMonarchTokensProvider("SnowFall", {
+			tokenPostfix: ".sf",
+			tokenizer: {
+				root: [
+					// コメント
+					[/\/\/.*/, "comment"], // 1行コメント
+					[/\/\*/, "comment", "@comment"], // 複数行コメント開始
+
+					// 文字列
+					[/"/, "string.quote", "@string_double"], // "abc"
+					[/'/, "string.quote", "@string_single"], // 'abc'
+					[/`/, "string", "@string_backtick"], // `abc`
+
+					// 数値
+					[/\b0b[01]+(?:\.[01]+)?\b/, "number"],
+					[/\b0x[0-9a-fA-F]+(?:\.[0-9a-fA-F]+)?\b/, "number"],
+					[/\b(?:0d)?\d+(?:\.\d+)?\b/, "number"],
+					[/\b\d+n?\b/, "number"],
+
+					// 型定義（型名だけ強調）
+					[/\bfunction\b/, "reserved-words", "@function_declaration"],
+					[/\b(let|const)\b(?=\s+[a-zA-Z_]\w*\s*:)/, "reserved-words", "@typeStart"],
+
+					// キーワードや識別子
+					[/\b(?:const|let|function|null|true|false)\b/, "reserved-words"],
+					[/\b(?:if|else|while|for|return|break|continue|switch|case|default|try|catch|throw|finally)\b/, "keyword"],
+
+					// 識別子
+					[/\b(?:[a-zA-Z_]\w*)\b(?=\()/, "function"],
+					[/\b[a-zA-Z_]\w*\b/, "identifier"],
+
+					[/=>/, "operator"],
+					[/[:=;]/, "operator"],
+
+					// 括弧
+					[/[\{\}\[\]\(\)]/, "@brackets"],
+				],
+
+				// 複数行コメント状態
+				comment: [
+					[/[^\/*]+/, "comment"],
+					[/\*\//, "comment", "@pop"], // コメント終了
+					[/[\/*]/, "comment"],
+				],
+
+				// 通常の文字列（ダブルクォート）
+				string_double: [
+					[/^/, { token: "invalid", next: "@pop" }],
+					[/$/, { token: "invalid", next: "@pop" }],
+
+					[/[^\\\"\n\r]+/, "string"],
+					[/\\./, "string.escape"],
+					[/"/, { token: "string.quote", next: "@pop" }],
+					[/\r\n|[\n\r]/, { token: "invalid", next: "@pop" }],
+				],
+
+				// シングルクォート文字列
+				string_single: [
+					[/^/, { token: "invalid", next: "@pop" }],
+					[/$/, { token: "invalid", next: "@pop" }],
+
+					[/[^\\\'\n\r]+/, "string"],
+					[/\\./, "string.escape"],
+					[/'/, { token: "string.quote", next: "@pop" }],
+					[/\r\n|[\n\r]/, { token: "invalid", next: "@pop" }],
+				],
+
+				// 複数行文字列（バッククォート）
+				string_backtick: [
+					[/[^\\`]+/, "string"],
+					[/\\./, "string.escape"],
+					[/`/, "string", "@pop"],
+				],
+
+				// 関数宣言の解析を開始
+				function_declaration: [
+					[/\s+/, ""],
+					[/[a-zA-Z_]\w*/, "function"], // 1. 関数名を 'function' としてハイライト
+					[/\(/, "@brackets", "@parameter_list"], // 2. '(' を見つけたら引数リストの解析へ
+
+					["", "", "@pop"],
+				],
+
+				// 引数リスト (...) の中身を解析
+				parameter_list: [
+					[/\s+/, ""],
+					[/\b[a-zA-Z_]\w*\b/, "identifier"], // 引数名を 'identifier' としてハイライト
+					[/:/, "operator", "@type"], // 引数の型定義へ
+					[/,/, "delimiter"], // 引数の区切り文字
+					[/\)/, "@brackets", "@return_type_check"], // 3. ')' を見つけたら引数リストの終わり。戻り値のチェックへ
+
+					["", "", "@pop"],
+				],
+
+				// 戻り値の型 (e.g., ':boolean') があるかチェック
+				return_type_check: [
+					[/\s+/, ""],
+					[/:/, "operator", "@type"], // 4. ':' があれば戻り値の型解析へ
+					["", "", "@pop"], // 5. ':' がなければここで終わり。root に戻る
+				],
+
+				typeStart: [
+					[/[a-zA-Z_]\w*/, "identifier"],
+					[/:/, "operator", "@type"],
+					[/\s+/, ""],
+					[/=/, { token: "operator", next: "@pop" }],
+					[/;/, { token: "delimiter", next: "@pop" }],
+				],
+
+				type: [
+					[/\s+/, ""],
+
+					[/[A-Z_a-z]\w*/, "type.identifier"],
+
+					// 配列型：[]
+					[/\[\]/, "keyword.array"],
+
+					// Union型: |
+					[/\|/, "delimiter.union"],
+
+					// Generics 開始: <
+					[/</, { token: "delimiter.angle", next: "@genericType" }],
+					// 型定義終了
+					["", "", "@pop"],
+				],
+
+				// Generic内
+				genericType: [
+					// ネストされた generic
+					[/</, { token: "delimiter.angle", next: "@genericType" }],
+
+					// 終了
+					[/>/, { token: "delimiter.angle", next: "@pop" }],
+
+					// 識別子や型名
+					[/[A-Z_a-z]\w*/, "type.identifier"],
+
+					// Union型内の | 演算子
+					[/\|/, "delimiter.union"],
+
+					// 配列型：boolean[]
+					[/\[\]/, "keyword.array"],
+
+					// カンマ
+					[/,/, "delimiter.comma"],
+
+					// 空白
+					[/\s+/, "white"],
+				],
+			},
+		});
+	}
+
+	static setCompletionProvider() {
+		monaco.languages.registerCompletionItemProvider("SnowFall", {
+			provideCompletionItems(model, position) {
+				const word = model.getWordUntilPosition(position);
+				const range = {
+					startLineNumber: position.lineNumber,
+					endLineNumber: position.lineNumber,
+					startColumn: word.startColumn,
+					endColumn: word.endColumn,
+				};
+				return {
+					suggestions: [
+						{ label: "print", kind: monaco.languages.CompletionItemKind.Function, insertText: "print", range },
+						{ label: "if", kind: monaco.languages.CompletionItemKind.Keyword, insertText: "if", range },
+						{ label: "let", kind: monaco.languages.CompletionItemKind.Keyword, insertText: "let;", range },
+					],
+				};
+			},
+		});
+	}
+
+	static setTheme() {
+		monaco.editor.defineTheme("SnowFallTheme-dark", {
+			base: "vs-dark",
+			inherit: true,
+			colors: {
+				"editor.foreground": "#d4d4d4",
+				"editor.background": "#1e1e1e",
+			},
+			rules: [
+				{ token: "keyword", foreground: "c586c0" },
+				{ token: "reserved-words", foreground: "569cd6" },
+				{ token: "string.escape", foreground: "ffcc00" },
+				{ token: "invalid", foreground: "ff0000", fontStyle: "italic underline" },
+				{ token: "type", foreground: "4ec9b0" },
+				{ token: "number", foreground: "b5cea8" },
+				{ token: "function", foreground: "dcdcaa" },
+				{ token: "identifier", foreground: "9cdcfe" },
+			],
+		});
+	}
+}
+
+class SnowFallRunner {
+	static defaultCode = `
 // 定数宣言
 const maxNumber:number = 50;
 const greet:string = "Hello";
@@ -242,58 +519,31 @@ print("2^3 = " + powerResult);
 print("End of program.");
 `;
 
-jasc.on("DOMContentLoaded", () => {
-	const editor = jasc.acq("#code-editor");
-	const compileOutput = jasc.acq("#compile-output");
-	const compileSize = jasc.acq("#compile-size");
-	const output = jasc.acq("#output");
-	const runButton = jasc.acq("#run-button");
-	const isCompact = jasc.acq("#is-compact");
+	static run(sourceCode, compact) {
+		let resultText = "";
+		let compiledJson = "";
+		let sizeInfo = "";
 
-	// デフォルトのコード
-	editor.value = DEFAULT_CODE;
-
-	runButton.addEventListener("click", () => {
-		const sourceCode = editor.value;
-
-		// 出力エリアをクリア
-		compileOutput.textContent = "";
-		compileSize.textContent = "";
-		output.textContent = "";
-		let outputHtml = "";
-
-		// SnowFallの設定オブジェクト。
-		// これを拡張することで、JSの機能をSnowFallに公開できる。
-		const mySettings = {
+		const settings = {
 			builtInFunctions: {
-				print: (...args) => {
-					// コンソールの代わりに画面に出力する
-					const line = args.map(String).join(" ");
-					outputHtml += line + "\n";
-					//console.log(...args); // 念のためコンソールにも
-				},
-				clog(...args) {
-					console.log("[clog]", ...args);
-				},
+				print: (...args) => (resultText += args.map(String).join(" ") + "\n"),
+				clog: (...args) => console.log("[clog]", ...args),
 			},
-			output: {
-				compact: isCompact.checked,
-			},
+			output: { compact },
 		};
 
 		try {
-			// SnowFallライブラリのAPIを呼び出す
-			const compiled = SnowFall.compile(sourceCode, mySettings);
-
-			const stringified = JSON.stringify(compiled, null, 0);
-			compileOutput.textContent = stringified;
-			compileSize.textContent = `${stringified.length} bytes (${sourceCode.length} bytes)`;
-
-			SnowFall.run(compiled, mySettings);
+			const compiled = SnowFall.compile(sourceCode, settings);
+			compiledJson = JSON.stringify(compiled, null, 0);
+			sizeInfo = `${compiledJson.length} bytes (${sourceCode.length} bytes)`;
+			SnowFall.run(compiled, settings);
 		} catch (e) {
-			outputHtml += "エラー: " + e.message;
+			resultText += "エラー: " + e.message;
 			console.error(e);
 		}
-		output.textContent = outputHtml;
-	});
-});
+
+		return { resultText, compiledJson, sizeInfo };
+	}
+}
+
+AppBootStrapper.start();

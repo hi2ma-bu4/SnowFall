@@ -3,6 +3,7 @@ import {
 	ArrayLiteralNode,
 	AssignmentExpressionNode,
 	AstNode,
+	BigIntLiteralNode,
 	BinaryExpressionNode,
 	BlockStatementNode,
 	BooleanLiteralNode,
@@ -16,6 +17,7 @@ import {
 	IfStatementNode,
 	LogicalExpressionNode,
 	MemberExpressionNode,
+	NullLiteralNode,
 	NumericLiteralNode,
 	ObjectLiteralNode,
 	ProgramNode,
@@ -97,9 +99,11 @@ export class Parser {
 		this.prefixParseFns = new Map();
 		this.registerPrefix("IDENTIFIER", this.parseIdentifier);
 		this.registerPrefix("NUMBER", this.parseNumericLiteral);
+		this.registerPrefix("BIGINT", this.parseBigIntLiteral);
 		this.registerPrefix("STRING", this.parseStringLiteral);
 		this.registerPrefix("TRUE", this.parseBooleanLiteral);
 		this.registerPrefix("FALSE", this.parseBooleanLiteral);
+		this.registerPrefix("NULL", this.parseNullLiteral);
 		this.registerPrefix("BANG", this.parsePrefixExpression);
 		this.registerPrefix("MINUS", this.parsePrefixExpression);
 		this.registerPrefix("PLUS_PLUS", this.parseUpdateExpression);
@@ -209,12 +213,20 @@ export class Parser {
 		return this.createNode("NumericLiteral", { value: parseFloat(this.currentToken.value) });
 	};
 
+	private parseBigIntLiteral = (): BigIntLiteralNode => {
+		return this.createNode("BigIntLiteral", { value: this.currentToken.value });
+	};
+
 	private parseStringLiteral = (): StringLiteralNode => {
 		return this.createNode("StringLiteral", { value: this.currentToken.value });
 	};
 
 	private parseBooleanLiteral = (): BooleanLiteralNode => {
 		return this.createNode("BooleanLiteral", { value: this.currentToken.type === "TRUE" });
+	};
+
+	private parseNullLiteral = (): NullLiteralNode => {
+		return this.createNode("NullLiteral", {});
 	};
 
 	private parseAssignmentExpression = (left: ExpressionNode): AssignmentExpressionNode => {

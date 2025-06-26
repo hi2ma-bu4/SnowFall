@@ -1,11 +1,13 @@
 // トークンの種類
 export type TokenType =
-	| "NUMBER"
+	| "NUMBER" // 0
+	| "BIGINT" // 0n
 	| "STRING"
 	| "IDENTIFIER"
 	| "KEYWORD"
 	| "TRUE"
 	| "FALSE"
+	| "NULL"
 	| "PLUS" // +
 	| "MINUS" // -
 	| "STAR" // *
@@ -60,6 +62,10 @@ export interface NumericLiteralNode extends ExpressionNode {
 	type: "NumericLiteral";
 	value: number;
 }
+export interface BigIntLiteralNode extends ExpressionNode {
+	type: "BigIntLiteral";
+	value: string; // コンパイラでBigIntに変換
+}
 export interface StringLiteralNode extends ExpressionNode {
 	type: "StringLiteral";
 	value: string;
@@ -67,6 +73,9 @@ export interface StringLiteralNode extends ExpressionNode {
 export interface BooleanLiteralNode extends ExpressionNode {
 	type: "BooleanLiteral";
 	value: boolean;
+}
+export interface NullLiteralNode extends ExpressionNode {
+	type: "NullLiteral";
 }
 export interface IdentifierNode extends ExpressionNode {
 	type: "Identifier";

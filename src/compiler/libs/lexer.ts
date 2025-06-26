@@ -25,6 +25,7 @@ export class Lexer {
 		return: "KEYWORD",
 		true: "TRUE",
 		false: "FALSE",
+		null: "NULL",
 		try: "KEYWORD",
 		catch: "KEYWORD",
 		finally: "KEYWORD",
@@ -60,12 +61,20 @@ export class Lexer {
 		this.advance(); // consume opening "
 		let result = "";
 		while (this.currentChar !== quoteChar && this.currentChar !== null) {
-			// バッククォート以外では改行はエラー
-			if (this.currentChar === "\n" && quoteChar !== "`") {
-				throw new LexerError(`Unterminated string at line ${startLine}, column ${startColumn}.`, startLine, startColumn);
+			if (this.currentChar === "\\") {
+				this.advance(); // consume '\'
+				if (this.currentChar !== null) {
+					result += this.currentChar;
+					this.advance();
+				}
+			} else {
+				// バッククォート以外では改行はエラー
+				if (this.currentChar === "\n" && quoteChar !== "`") {
+					throw new LexerError(`Unterminated string at line ${startLine}, column ${startColumn}.`, startLine, startColumn);
+				}
+				result += this.currentChar;
+				this.advance();
 			}
-			result += this.currentChar;
-			this.advance();
 		}
 		if (this.currentChar === null) {
 			throw new LexerError("Unterminated string.", startLine, startColumn);
@@ -75,18 +84,61 @@ export class Lexer {
 	}
 
 	private number(): Token {
+		// プレフィックス(0b, 0d, 0x)の処理
+		if (this.currentChar === "0" && this.peek() && /[bdx]/.test(this.peek()!)) {
+			this.advance(); // '0'を消費
+			const baseChar = this.currentChar! as "b" | "d" | "x";
+			this.advance(); // プレフィックス文字(b, d, x)を消費
+
+			let base: number;
+			let validDigits: RegExp;
+
+			switch (baseChar) {
+				case "b":
+					base = 2;
+					validDigits = /[01]/;
+					break;
+				case "d":
+					base = 10;
+					validDigits = /\d/;
+					break;
+				case "x":
+					base = 16;
+					validDigits = /[0-9a-fA-F]/;
+					break;
+				default:
+					// このパスには到達しないはず
+					throw new LexerError(`Invalid numeric prefix '0${baseChar}'`, this.line, this.column);
+			}
+
+			let digits = "";
+			while (this.currentChar !== null && validDigits.test(this.currentChar)) {
+				digits += this.currentChar;
+				this.advance();
+			}
+
+			if (digits.length === 0) {
+				throw new LexerError(`Number literal has no digits after prefix '0${baseChar}'`, this.line, this.column);
+			}
+
+			const value = parseInt(digits, base);
+			return this.createToken("NUMBER", String(value));
+		}
 		let result = "";
 		while (this.currentChar !== null && /\d/.test(this.currentChar)) {
 			result += this.currentChar;
 			this.advance();
 		}
-		if (this.currentChar === "." && this.peek() !== null && /\d/.test(this.peek()!)) {
+		if (this.currentChar === ".") {
 			result += this.currentChar;
 			this.advance();
 			while (this.currentChar !== null && /\d/.test(this.currentChar)) {
 				result += this.currentChar;
 				this.advance();
 			}
+		} else if (this.currentChar === "n") {
+			this.advance();
+			return this.createToken("BIGINT", result);
 		}
 		return this.createToken("NUMBER", result);
 	}

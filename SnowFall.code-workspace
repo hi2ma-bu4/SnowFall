@@ -17,10 +17,13 @@
 			"Lempel",
 			"LPAREN",
 			"nodenext",
+			"repr",
 			"RPAREN",
 			"smartpack",
 			"Truncatable",
-			"tsify"
+			"tsify",
+			"UPVALUE",
+			"upvalues"
 		]
 	}
 }

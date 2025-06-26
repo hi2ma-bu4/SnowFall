@@ -1,5 +1,6 @@
 import lzbase62 from "../libs/lzbase62/src/index";
 import SmartPackRLE from "./compressor/smartpack";
+import jsonExtended from "./jsonextended";
 
 export class Compressor {
 	protected static readonly BYTE_MASK = 0x7f;
@@ -49,7 +50,7 @@ export class Compressor {
 	 * @returns 圧縮後の文字列
 	 */
 	static encodeJSON(data: any): string {
-		return this.encodeString(JSON.stringify(data));
+		return this.encodeString(jsonExtended.stringify(data));
 	}
 	/**
 	 * 文字列を圧縮する
@@ -107,7 +108,7 @@ export class Compressor {
 	 * @returns 解凍後のJSON
 	 */
 	static decodeJSON(str: string): any {
-		return JSON.parse(this.decodeString(str));
+		return jsonExtended.parse(this.decodeString(str));
 	}
 	/**
 	 * 圧縮された文字列を解凍する

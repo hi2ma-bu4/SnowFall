@@ -89,6 +89,9 @@ export class SnowFallVM {
 						const expectedType = this.readConstant().toLowerCase();
 						const value = this.stack[this.stack.length - 1]; // peek
 
+						if (expectedType === "any") {
+							break;
+						}
 						// Allow undefined for declarations without initializers.
 						if (value === undefined) {
 							break;
@@ -99,7 +102,7 @@ export class SnowFallVM {
 						else if (Array.isArray(value)) actualType = "array";
 						else actualType = typeof value;
 
-						if (expectedType !== actualType) {
+						if (expectedType !== actualType && actualType !== "null") {
 							throw this.runtimeError(`Expected type '${expectedType}' but got '${actualType}'.`);
 						}
 						break;
@@ -257,24 +260,63 @@ export class SnowFallVM {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a + b);
+						else if (typeof a === "bigint" && typeof b === "bigint") this.stack.push(a + b);
 						else if (typeof a === "string" || typeof b === "string") this.stack.push(String(a) + String(b));
-						else throw this.runtimeError("Operands must be two numbers or at least one string.");
+						else if (typeof a === "number" && typeof b === "bigint") {
+							try {
+								this.stack.push(BigInt(Math.floor(a)) + b);
+							} catch {
+								throw this.runtimeError(`Cannot multiply non-integer number by BigInt: number=${String(a)}, BigInt=${String(b)}`);
+							}
+						} else if (typeof a === "bigint" && typeof b === "number") {
+							try {
+								this.stack.push(a + BigInt(Math.floor(b)));
+							} catch {
+								throw this.runtimeError(`Cannot multiply BigInt by non-integer number: BigInt=${String(a)}, number=${String(b)}`);
+							}
+						} else throw this.runtimeError(`Invalid operand types for addition. Received: ${typeof a} + ${typeof b}`);
 						break;
 					}
 					case OpCode.SUBTRACT: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a - b);
-						else throw this.runtimeError("Operands must be two numbers.");
+						else if (typeof a === "bigint" && typeof b === "bigint") this.stack.push(a - b);
+						else if (typeof a === "number" && typeof b === "bigint") {
+							try {
+								this.stack.push(BigInt(Math.floor(a)) - b);
+							} catch {
+								throw this.runtimeError(`Cannot multiply non-integer number by BigInt: number=${String(a)}, BigInt=${String(b)}`);
+							}
+						} else if (typeof a === "bigint" && typeof b === "number") {
+							try {
+								this.stack.push(a - BigInt(Math.floor(b)));
+							} catch {
+								throw this.runtimeError(`Cannot multiply BigInt by non-integer number: BigInt=${String(a)}, number=${String(b)}`);
+							}
+						} else throw this.runtimeError(`Invalid operand types for subtraction. Received: ${typeof a} - ${typeof b}`);
 						break;
 					}
 					case OpCode.MULTIPLY: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") this.stack.push(a * b);
+						else if (typeof a === "bigint" && typeof b === "bigint") this.stack.push(a * b);
 						else if (typeof a === "string" && typeof b === "number") this.stack.push(a.repeat(b));
 						else if (typeof a === "number" && typeof b === "string") this.stack.push(b.repeat(a));
-						else throw this.runtimeError("Operands must be two numbers. Or one string and one number.");
+						else if (typeof a === "number" && typeof b === "bigint") {
+							try {
+								this.stack.push(BigInt(Math.floor(a)) * b);
+							} catch {
+								throw this.runtimeError(`Cannot multiply non-integer number by BigInt: number=${String(a)}, BigInt=${String(b)}`);
+							}
+						} else if (typeof a === "bigint" && typeof b === "number") {
+							try {
+								this.stack.push(a * BigInt(Math.floor(b)));
+							} catch {
+								throw this.runtimeError(`Cannot multiply BigInt by non-integer number: BigInt=${String(a)}, number=${String(b)}`);
+							}
+						} else throw this.runtimeError(`Invalid operand types for multiplication. Received: ${typeof a} * ${typeof b}`);
 						break;
 					}
 					case OpCode.DIVIDE: {
@@ -283,16 +325,52 @@ export class SnowFallVM {
 						if (typeof a === "number" && typeof b === "number") {
 							if (b === 0) throw this.runtimeError("Division by zero.");
 							this.stack.push(a / b);
-						} else throw this.runtimeError("Operands must be two numbers.");
+						} else if (typeof a === "bigint" && typeof b === "bigint") {
+							if (b === 0n) throw this.runtimeError("Division by zero.");
+							this.stack.push(a / b);
+						} else if (typeof a === "number" && typeof b === "bigint") {
+							try {
+								if (b === 0n) throw this.runtimeError("Division by zero.");
+								this.stack.push(BigInt(Math.floor(a)) / b);
+							} catch {
+								throw this.runtimeError(`Cannot divide non-integer number by BigInt: number=${String(a)}, BigInt=${String(b)}`);
+							}
+						} else if (typeof a === "bigint" && typeof b === "number") {
+							try {
+								const b2 = BigInt(Math.floor(b));
+								if (b2 === 0n) throw this.runtimeError("Division by zero.");
+								this.stack.push(a / b2);
+							} catch {
+								throw this.runtimeError(`Cannot divide BigInt by non-integer number: BigInt=${String(a)}, number=${String(b)}`);
+							}
+						} else throw this.runtimeError(`Invalid operand types for division. Received: ${typeof a} / ${typeof b}`);
 						break;
 					}
 					case OpCode.MODULO: {
 						const b = this.stack.pop();
 						const a = this.stack.pop();
 						if (typeof a === "number" && typeof b === "number") {
-							if (b === 0) throw this.runtimeError("Division by zero.");
+							if (b === 0) throw this.runtimeError("Modulo by zero.");
 							this.stack.push(a % b);
-						} else throw this.runtimeError("Operands must be two numbers.");
+						} else if (typeof a === "bigint" && typeof b === "bigint") {
+							if (b === 0n) throw this.runtimeError("Modulo by zero.");
+							this.stack.push(a % b);
+						} else if (typeof a === "number" && typeof b === "bigint") {
+							try {
+								if (b === 0n) throw this.runtimeError("Modulo by zero.");
+								this.stack.push(BigInt(Math.floor(a)) % b);
+							} catch {
+								throw this.runtimeError(`Cannot perform modulo of non-integer number by BigInt. number=${String(a)}, BigInt=${String(b)}`);
+							}
+						} else if (typeof a === "bigint" && typeof b === "number") {
+							try {
+								const b2 = BigInt(Math.floor(b));
+								if (b2 === 0n) throw this.runtimeError("Modulo by zero.");
+								this.stack.push(a % b2);
+							} catch {
+								throw this.runtimeError(`Cannot perform modulo of BigInt by non-integer number. BigInt=${String(a)}, number=${String(b)}`);
+							}
+						} else throw this.runtimeError(`Invalid operand types for modulo. Received: ${typeof a} % ${typeof b}`);
 						break;
 					}
 
@@ -347,7 +425,7 @@ export class SnowFallVM {
 
 								// Pad arguments with null if they were not provided
 								for (let i = argCount; i < callee.arity; i++) {
-									this.stack.push(undefined);
+									this.stack.push(null);
 								}
 
 								const func = this.decompressData(callee);
