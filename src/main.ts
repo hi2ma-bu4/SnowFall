@@ -2,6 +2,7 @@ import { Compiler } from "./compiler/compiler";
 import { Lexer } from "./compiler/libs/lexer";
 import { Parser } from "./compiler/libs/parser";
 import { CompiledOutputType, SnowFallSettings } from "./const/types";
+import { Decompiler } from "./decompiler/decompiler";
 import { SnowFallVM } from "./vm/vm";
 
 // デフォルトの設定
@@ -50,9 +51,15 @@ function compileAndRun(source: string, settings: SnowFallSettings = defaultSetti
 	return run(compiled, settings);
 }
 
+function decompile(data: CompiledOutputType): string {
+	const decompiler = new Decompiler(data);
+	return decompiler.decompile();
+}
+
 // ライブラリとして公開するAPI
 export const SnowFall = {
 	compile,
 	run,
 	compileAndRun,
+	decompile,
 };

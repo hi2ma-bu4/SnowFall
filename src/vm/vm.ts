@@ -1,7 +1,7 @@
 import { SnowFallBaseError, VMError } from "../const/errors";
 import { OpCode } from "../const/opcodes";
-import { CompactCompiledFunction, CompiledFunction, CompiledOutputType, SnowFallSettings } from "../const/types";
-import { Compressor } from "../util/compressor";
+import { CompiledFunction, CompiledOutputType, SnowFallSettings } from "../const/types";
+import CompiledDataHandler from "../util/compileddatahandler";
 
 interface CallFrame {
 	func: CompiledFunction;
@@ -48,7 +48,7 @@ export class SnowFallVM {
 		}
 
 		// Initial setup
-		const func = this.decompressData(entryFunction);
+		const func = CompiledDataHandler.decompress(entryFunction);
 		this.stack.push(func);
 		const frame = { func, ip: 0, stackStart: 0 };
 		this.frames.push(frame);
@@ -428,7 +428,7 @@ export class SnowFallVM {
 									this.stack.push(null);
 								}
 
-								const func = this.decompressData(callee);
+								const func = CompiledDataHandler.decompress(callee);
 								const newFrame = { func, ip: 0, stackStart: calleeIndex };
 								this.frames.push(newFrame);
 								this.frame = newFrame;
@@ -477,18 +477,5 @@ export class SnowFallVM {
 				console.error(error.message);
 			}
 		}
-	}
-
-	private decompressData(cfData: CompiledOutputType): CompiledFunction {
-		if ((cfData as CompiledFunction).chunk !== undefined) return cfData as CompiledFunction;
-		return {
-			name: cfData.name,
-			arity: cfData.arity,
-			chunk: {
-				code: Compressor.decodeNumbers((cfData as CompactCompiledFunction).code),
-				constants: Compressor.decodeJSON((cfData as CompactCompiledFunction).constants),
-				lines: Compressor.decodeSmartPack((cfData as CompactCompiledFunction).lines),
-			},
-		};
 	}
 }

@@ -34,7 +34,7 @@ import {
 	VariableDeclarationNode,
 	WhileStatementNode,
 } from "../const/types";
-import { Compressor } from "../util/compressor";
+import CompiledDataHandler from "../util/compileddatahandler";
 import jsonExtended from "../util/jsonextended";
 
 // -- Symbol Table for Scope Management --
@@ -823,20 +823,6 @@ export class Compiler {
 		}
 	}
 
-	private compressData(): CompiledOutputType {
-		if (!this.settings.output?.compact) {
-			return this.compiledFunction;
-		}
-
-		return {
-			name: this.compiledFunction.name,
-			arity: this.compiledFunction.arity,
-			code: Compressor.encodeNumbers(this.compiledFunction.chunk.code),
-			constants: Compressor.encodeJSON(this.compiledFunction.chunk.constants),
-			lines: Compressor.encodeSmartPack(this.compiledFunction.chunk.lines),
-		};
-	}
-
 	// --- Public API ---
 	public compile(): CompiledOutputType {
 		this.compileNode(this.ast);
@@ -844,6 +830,6 @@ export class Compiler {
 			this.emit(OpCode.PUSH_NULL);
 			this.emit(OpCode.RETURN);
 		}
-		return this.compressData();
+		return CompiledDataHandler.compress(this.compiledFunction, this.settings);
 	}
 }

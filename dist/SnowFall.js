@@ -224,7 +224,7 @@ var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/creat
 var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
 var _errors = require("../const/errors");
 var _opcodes = require("../const/opcodes");
-var _compressor = require("../util/compressor");
+var _compileddatahandler = _interopRequireDefault(require("../util/compileddatahandler"));
 var _jsonextended = _interopRequireDefault(require("../util/jsonextended"));
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
@@ -1007,21 +1007,6 @@ var Compiler = exports.Compiler = function () {
       }
     }
   }, {
-    key: "compressData",
-    value: function compressData() {
-      var _this$settings$output;
-      if (!((_this$settings$output = this.settings.output) !== null && _this$settings$output !== void 0 && _this$settings$output.compact)) {
-        return this.compiledFunction;
-      }
-      return {
-        name: this.compiledFunction.name,
-        arity: this.compiledFunction.arity,
-        code: _compressor.Compressor.encodeNumbers(this.compiledFunction.chunk.code),
-        constants: _compressor.Compressor.encodeJSON(this.compiledFunction.chunk.constants),
-        lines: _compressor.Compressor.encodeSmartPack(this.compiledFunction.chunk.lines)
-      };
-    }
-  }, {
     key: "compile",
     value: function compile() {
       this.compileNode(this.ast);
@@ -1029,13 +1014,13 @@ var Compiler = exports.Compiler = function () {
         this.emit(_opcodes.OpCode.PUSH_NULL);
         this.emit(_opcodes.OpCode.RETURN);
       }
-      return this.compressData();
+      return _compileddatahandler["default"].compress(this.compiledFunction, this.settings);
     }
   }]);
 }();
 (0, _defineProperty2["default"])(Compiler, "FUNCTION_COMPRESS_MAGNIFICATION", 4);
 
-},{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"../util/jsonextended":38,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],24:[function(require,module,exports){
+},{"../const/errors":26,"../const/opcodes":27,"../util/compileddatahandler":36,"../util/jsonextended":40,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],24:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2164,6 +2149,262 @@ var OpCode;
 },{}],28:[function(require,module,exports){
 "use strict";
 
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.Decompiler = void 0;
+var _typeof2 = _interopRequireDefault(require("@babel/runtime/helpers/typeof"));
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
+var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
+var _opcodes = require("../const/opcodes");
+var _compileddatahandler = _interopRequireDefault(require("../util/compileddatahandler"));
+var Decompiler = exports.Decompiler = function () {
+  function Decompiler(compiledOutput) {
+    (0, _classCallCheck2["default"])(this, Decompiler);
+    (0, _defineProperty2["default"])(this, "indentLevel", 0);
+    this.func = _compileddatahandler["default"].decompress(compiledOutput);
+  }
+  return (0, _createClass2["default"])(Decompiler, [{
+    key: "indent",
+    value: function indent() {
+      return "  ".repeat(this.indentLevel);
+    }
+  }, {
+    key: "valueToString",
+    value: function valueToString(value) {
+      if (typeof value === "string") {
+        return "\"".concat(value.replace(/"/g, '\\"'), "\"");
+      }
+      if (typeof value === "bigint") {
+        return "".concat(value, "n");
+      }
+      if (value === null) {
+        return "null";
+      }
+      if ((0, _typeof2["default"])(value) === "object" && value !== null && value.chunk) {
+        var funcKey = JSON.stringify(value);
+        if (Decompiler.decompileCache.has(funcKey)) {
+          return Decompiler.decompileCache.get(funcKey);
+        }
+        var nestedDecompiler = new Decompiler(value);
+        var decompiledCode = nestedDecompiler.decompile();
+        Decompiler.decompileCache.set(funcKey, decompiledCode);
+        return decompiledCode;
+      }
+      return String(value);
+    }
+  }, {
+    key: "opToBinaryOperator",
+    value: function opToBinaryOperator(op) {
+      var _map;
+      var map = (_map = {}, (0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])(_map, _opcodes.OpCode.ADD, "+"), _opcodes.OpCode.SUBTRACT, "-"), _opcodes.OpCode.MULTIPLY, "*"), _opcodes.OpCode.DIVIDE, "/"), _opcodes.OpCode.MODULO, "%"), _opcodes.OpCode.EQUAL, "=="), _opcodes.OpCode.NOT_EQUAL, "!="), _opcodes.OpCode.GREATER_THAN, ">"), _opcodes.OpCode.GREATER_EQUAL, ">="), _opcodes.OpCode.LESS_THAN, "<"), (0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])(_map, _opcodes.OpCode.LESS_EQUAL, "<="), _opcodes.OpCode.BITWISE_AND, "&"), _opcodes.OpCode.BITWISE_OR, "|"));
+      return map[op] || "?";
+    }
+  }, {
+    key: "decompile",
+    value: function decompile() {
+      var _this$func$chunk = this.func.chunk,
+        code = _this$func$chunk.code,
+        constants = _this$func$chunk.constants;
+      var funcKey = JSON.stringify({
+        code: code,
+        constants: constants
+      });
+      if (Decompiler.decompileCache.has(funcKey)) {
+        return Decompiler.decompileCache.get(funcKey);
+      }
+      var output = "";
+      var expressionStack = [];
+      var localNames = new Map();
+      localNames.set(0, this.func.name || "(script)");
+      for (var i = 0; i < this.func.arity; i++) {
+        localNames.set(i + 1, "param_".concat(i));
+      }
+      var getLocalName = function getLocalName(slot) {
+        if (!localNames.has(slot)) {
+          localNames.set(slot, "local_".concat(slot));
+        }
+        return localNames.get(slot);
+      };
+      if (this.func.name !== "main") {
+        var params = Array.from({
+          length: this.func.arity
+        }, function (_, i) {
+          return getLocalName(i + 1);
+        });
+        output += "".concat(this.indent(), "function ").concat(this.func.name, "(").concat(params.join(", "), ") {\n");
+        this.indentLevel++;
+      }
+      var ip = 0;
+      while (ip < code.length) {
+        var currentOp = code[ip];
+        if (ip + 3 < code.length && currentOp === _opcodes.OpCode.DUP && code[ip + 1] === _opcodes.OpCode.CHECK_TYPE && code[ip + 3] === _opcodes.OpCode.POP) {
+          ip += 4;
+          continue;
+        }
+        ip++;
+        switch (currentOp) {
+          case _opcodes.OpCode.PUSH_CONST:
+            expressionStack.push(this.valueToString(constants[code[ip++]]));
+            break;
+          case _opcodes.OpCode.PUSH_TRUE:
+            expressionStack.push("true");
+            break;
+          case _opcodes.OpCode.PUSH_FALSE:
+            expressionStack.push("false");
+            break;
+          case _opcodes.OpCode.PUSH_NULL:
+            expressionStack.push("null");
+            break;
+          case _opcodes.OpCode.POP:
+            {
+              var expr = expressionStack.pop();
+              if (expr) {
+                output += "".concat(this.indent()).concat(expr, ";\n");
+              }
+              break;
+            }
+          case _opcodes.OpCode.DUP:
+            expressionStack.push(expressionStack[expressionStack.length - 1]);
+            break;
+          case _opcodes.OpCode.DEFINE_GLOBAL:
+            {
+              var name = constants[code[ip++]];
+              var value = expressionStack.pop() || "null";
+              output += "".concat(this.indent(), "let ").concat(name, " = ").concat(value, ";\n");
+              break;
+            }
+          case _opcodes.OpCode.GET_GLOBAL:
+            expressionStack.push(constants[code[ip++]]);
+            break;
+          case _opcodes.OpCode.SET_GLOBAL:
+            {
+              var _name = constants[code[ip++]];
+              var _value = expressionStack.pop();
+              expressionStack.push("".concat(_name, " = ").concat(_value));
+              break;
+            }
+          case _opcodes.OpCode.GET_LOCAL:
+            expressionStack.push(getLocalName(code[ip++]));
+            break;
+          case _opcodes.OpCode.SET_LOCAL:
+            {
+              var slot = code[ip++];
+              var _name2 = getLocalName(slot);
+              var _value2 = expressionStack.pop();
+              expressionStack.push("".concat(_name2, " = ").concat(_value2));
+              break;
+            }
+          case _opcodes.OpCode.BUILD_ARRAY:
+            {
+              var itemCount = code[ip++];
+              var elements = expressionStack.splice(expressionStack.length - itemCount, itemCount);
+              expressionStack.push("[".concat(elements.join(", "), "]"));
+              break;
+            }
+          case _opcodes.OpCode.BUILD_TUPLE:
+            {
+              var _itemCount = code[ip++];
+              var _elements = expressionStack.splice(expressionStack.length - _itemCount, _itemCount);
+              expressionStack.push("(".concat(_elements.join(", "), ")"));
+              break;
+            }
+          case _opcodes.OpCode.BUILD_OBJECT:
+            {
+              var pairCount = code[ip++];
+              var properties = [];
+              for (var _i = 0; _i < pairCount; _i++) {
+                var _value3 = expressionStack.pop();
+                var key = expressionStack.pop();
+                properties.unshift("".concat(key, ": ").concat(_value3));
+              }
+              expressionStack.push("{ ".concat(properties.join(", "), " }"));
+              break;
+            }
+          case _opcodes.OpCode.GET_PROPERTY:
+            {
+              var property = expressionStack.pop();
+              var object = expressionStack.pop();
+              if (property && property.startsWith('"') && property.endsWith('"')) {
+                var propName = property.slice(1, -1);
+                if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(propName)) {
+                  expressionStack.push("".concat(object, ".").concat(propName));
+                  break;
+                }
+              }
+              expressionStack.push("".concat(object, "[").concat(property, "]"));
+              break;
+            }
+          case _opcodes.OpCode.SET_PROPERTY:
+            {
+              var _value4 = expressionStack.pop();
+              var _property = expressionStack.pop();
+              var _object = expressionStack.pop();
+              var assignment = "".concat(_object, "[").concat(_property, "] = ").concat(_value4);
+              expressionStack.push(assignment);
+              break;
+            }
+          case _opcodes.OpCode.ADD:
+          case _opcodes.OpCode.SUBTRACT:
+          case _opcodes.OpCode.MULTIPLY:
+          case _opcodes.OpCode.DIVIDE:
+          case _opcodes.OpCode.MODULO:
+          case _opcodes.OpCode.EQUAL:
+          case _opcodes.OpCode.NOT_EQUAL:
+          case _opcodes.OpCode.GREATER_THAN:
+          case _opcodes.OpCode.GREATER_EQUAL:
+          case _opcodes.OpCode.LESS_THAN:
+          case _opcodes.OpCode.LESS_EQUAL:
+          case _opcodes.OpCode.BITWISE_AND:
+          case _opcodes.OpCode.BITWISE_OR:
+            {
+              var b = expressionStack.pop();
+              var a = expressionStack.pop();
+              expressionStack.push("(".concat(a, " ").concat(this.opToBinaryOperator(currentOp), " ").concat(b, ")"));
+              break;
+            }
+          case _opcodes.OpCode.NEGATE:
+            {
+              var _expr = expressionStack.pop();
+              expressionStack.push("!(".concat(_expr, ")"));
+              break;
+            }
+          case _opcodes.OpCode.CALL:
+            {
+              var argCount = code[ip++];
+              var args = expressionStack.splice(expressionStack.length - argCount, argCount);
+              var callee = expressionStack.pop();
+              expressionStack.push("".concat(callee, "(").concat(args.join(", "), ")"));
+              break;
+            }
+          case _opcodes.OpCode.RETURN:
+            {
+              if (ip < code.length) {
+                var _value5 = expressionStack.pop();
+                output += "".concat(this.indent(), "return").concat(_value5 ? " " + _value5 : "", ";\n");
+              }
+              break;
+            }
+          default:
+            break;
+        }
+      }
+      if (this.func.name !== "main") {
+        this.indentLevel--;
+        output += "".concat(this.indent(), "}\n");
+      }
+      Decompiler.decompileCache.set(funcKey, output);
+      return output;
+    }
+  }]);
+}();
+(0, _defineProperty2["default"])(Decompiler, "decompileCache", new Map());
+
+},{"../const/opcodes":27,"../util/compileddatahandler":36,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],29:[function(require,module,exports){
+"use strict";
+
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -2174,7 +2415,7 @@ if (typeof window !== "undefined") {
 }
 var _default = exports["default"] = _main.SnowFall;
 
-},{"./main":34}],29:[function(require,module,exports){
+},{"./main":35}],30:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2396,7 +2637,7 @@ var Compressor = exports["default"] = function () {
   }]);
 }();
 
-},{"./config":30,"./util":33,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],30:[function(require,module,exports){
+},{"./config":31,"./util":34,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],31:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2455,7 +2696,7 @@ var COMPRESS_START = exports.COMPRESS_START = CHAR_START + 1;
 var COMPRESS_FIXED_START = exports.COMPRESS_FIXED_START = COMPRESS_START + 5;
 var COMPRESS_INDEX = exports.COMPRESS_INDEX = COMPRESS_FIXED_START + 5;
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2596,7 +2837,7 @@ var Decompressor = exports["default"] = function () {
   }]);
 }();
 
-},{"./config":30,"./util":33,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],32:[function(require,module,exports){
+},{"./config":31,"./util":34,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],33:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2627,7 +2868,7 @@ var _default = exports["default"] = {
   decompress: decompress
 };
 
-},{"./compressor":29,"./decompressor":31,"@babel/runtime/helpers/interopRequireDefault":10}],33:[function(require,module,exports){
+},{"./compressor":30,"./decompressor":32,"@babel/runtime/helpers/interopRequireDefault":10}],34:[function(require,module,exports){
 "use strict";
 
 var _typeof = require("@babel/runtime/helpers/typeof");
@@ -2750,7 +2991,7 @@ function createWindow() {
   return win;
 }
 
-},{"./config":30,"@babel/runtime/helpers/typeof":20}],34:[function(require,module,exports){
+},{"./config":31,"@babel/runtime/helpers/typeof":20}],35:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -2760,6 +3001,7 @@ exports.SnowFall = void 0;
 var _compiler = require("./compiler/compiler");
 var _lexer = require("./compiler/libs/lexer");
 var _parser = require("./compiler/libs/parser");
+var _decompiler = require("./decompiler/decompiler");
 var _vm = require("./vm/vm");
 var defaultSettings = {
   builtInFunctions: {}
@@ -2783,13 +3025,68 @@ function compileAndRun(source) {
   var compiled = compile(source, settings);
   return run(compiled, settings);
 }
+function decompile(data) {
+  var decompiler = new _decompiler.Decompiler(data);
+  return decompiler.decompile();
+}
 var SnowFall = exports.SnowFall = {
   compile: compile,
   run: run,
-  compileAndRun: compileAndRun
+  compileAndRun: compileAndRun,
+  decompile: decompile
 };
 
-},{"./compiler/compiler":23,"./compiler/libs/lexer":24,"./compiler/libs/parser":25,"./vm/vm":39}],35:[function(require,module,exports){
+},{"./compiler/compiler":23,"./compiler/libs/lexer":24,"./compiler/libs/parser":25,"./decompiler/decompiler":28,"./vm/vm":41}],36:[function(require,module,exports){
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports["default"] = void 0;
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
+var _compressor = require("./compressor");
+var CompiledDataHandler = exports["default"] = function () {
+  function CompiledDataHandler() {
+    (0, _classCallCheck2["default"])(this, CompiledDataHandler);
+  }
+  return (0, _createClass2["default"])(CompiledDataHandler, null, [{
+    key: "compress",
+    value: function compress(func, settings) {
+      var _settings$output;
+      if (!((_settings$output = settings.output) !== null && _settings$output !== void 0 && _settings$output.compact)) {
+        return func;
+      }
+      return {
+        name: func.name,
+        arity: func.arity,
+        code: _compressor.Compressor.encodeNumbers(func.chunk.code),
+        constants: _compressor.Compressor.encodeJSON(func.chunk.constants),
+        lines: _compressor.Compressor.encodeSmartPack(func.chunk.lines)
+      };
+    }
+  }, {
+    key: "decompress",
+    value: function decompress(data) {
+      if (data.chunk !== undefined) {
+        return data;
+      }
+      var compact = data;
+      return {
+        name: compact.name,
+        arity: compact.arity,
+        chunk: {
+          code: _compressor.Compressor.decodeNumbers(compact.code),
+          constants: _compressor.Compressor.decodeJSON(compact.constants),
+          lines: _compressor.Compressor.decodeSmartPack(compact.lines)
+        }
+      };
+    }
+  }]);
+}();
+
+},{"./compressor":37,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/interopRequireDefault":10}],37:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2914,7 +3211,7 @@ var Compressor = exports.Compressor = function () {
 (0, _defineProperty2["default"])(Compressor, "BYTE_MASK", 0x7f);
 (0, _defineProperty2["default"])(Compressor, "BYTE_MSB", 0x80);
 
-},{"../libs/lzbase62/src/index":32,"./compressor/smartpack":37,"./jsonextended":38,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],36:[function(require,module,exports){
+},{"../libs/lzbase62/src/index":33,"./compressor/smartpack":39,"./jsonextended":40,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],38:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -2987,7 +3284,7 @@ var BitReader = exports.BitReader = function () {
   }]);
 }();
 
-},{"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],37:[function(require,module,exports){
+},{"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10}],39:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -3086,7 +3383,7 @@ var SmartPackRLE = exports["default"] = function () {
   }]);
 }();
 
-},{"./bitwriter":36,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/interopRequireDefault":10}],38:[function(require,module,exports){
+},{"./bitwriter":38,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/interopRequireDefault":10}],40:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -3172,7 +3469,7 @@ var _default = exports["default"] = {
   parse: parse
 };
 
-},{"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],39:[function(require,module,exports){
+},{"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],41:[function(require,module,exports){
 "use strict";
 
 var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
@@ -3187,7 +3484,7 @@ var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/creat
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
 var _errors = require("../const/errors");
 var _opcodes = require("../const/opcodes");
-var _compressor = require("../util/compressor");
+var _compileddatahandler = _interopRequireDefault(require("../util/compileddatahandler"));
 var SnowFallVM = exports.SnowFallVM = function () {
   function SnowFallVM(entryFunction, settings) {
     (0, _classCallCheck2["default"])(this, SnowFallVM);
@@ -3206,7 +3503,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
       };
       this.globals.set(name, builtin);
     }
-    var func = this.decompressData(entryFunction);
+    var func = _compileddatahandler["default"].decompress(entryFunction);
     this.stack.push(func);
     var frame = {
       func: func,
@@ -3589,7 +3886,7 @@ var SnowFallVM = exports.SnowFallVM = function () {
                     for (var _i = argCount; _i < callee.arity; _i++) {
                       this.stack.push(null);
                     }
-                    var func = this.decompressData(callee);
+                    var func = _compileddatahandler["default"].decompress(callee);
                     var newFrame = {
                       func: func,
                       ip: 0,
@@ -3641,23 +3938,9 @@ var SnowFallVM = exports.SnowFallVM = function () {
         }
       }
     }
-  }, {
-    key: "decompressData",
-    value: function decompressData(cfData) {
-      if (cfData.chunk !== undefined) return cfData;
-      return {
-        name: cfData.name,
-        arity: cfData.arity,
-        chunk: {
-          code: _compressor.Compressor.decodeNumbers(cfData.code),
-          constants: _compressor.Compressor.decodeJSON(cfData.constants),
-          lines: _compressor.Compressor.decodeSmartPack(cfData.lines)
-        }
-      };
-    }
   }]);
 }();
 (0, _defineProperty2["default"])(SnowFallVM, "TUPLE_MARKER", Symbol("isTuple"));
 
-},{"../const/errors":26,"../const/opcodes":27,"../util/compressor":35,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/toConsumableArray":17,"@babel/runtime/helpers/typeof":20}]},{},[28])
+},{"../const/errors":26,"../const/opcodes":27,"../util/compileddatahandler":36,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/toConsumableArray":17,"@babel/runtime/helpers/typeof":20}]},{},[29])
 //# sourceMappingURL=SnowFall.js.map

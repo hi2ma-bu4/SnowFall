@@ -48,10 +48,12 @@ declare function run(compiled: CompiledOutputType, settings?: SnowFallSettings):
  * @returns 最後の式の評価結果
  */
 declare function compileAndRun(source: string, settings?: SnowFallSettings): any;
+declare function decompile(data: CompiledOutputType): string;
 declare const SnowFall: {
     compile: typeof compile;
     run: typeof run;
     compileAndRun: typeof compileAndRun;
+    decompile: typeof decompile;
 };
 
 export { SnowFall as default };

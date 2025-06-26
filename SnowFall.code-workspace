@@ -13,7 +13,11 @@
 		"cSpell.words": [
 			"bitwriter",
 			"CHARCODE",
+			"compileddatahandler",
 			"corejs",
+			"decompiled",
+			"decompiler",
+			"jsonextended",
 			"Lempel",
 			"LPAREN",
 			"nodenext",

@@ -13,6 +13,7 @@ jasc.initSetting = {
 // 型定義は持続させる、タプルを使用できるように
 // グローバル部分もlet変数再定義,const定数再代入を禁止にする,グローバル書き込みのvarを追加する
 // TODO: 配列、連想配列、タプルは独自型を作成
+// TODO: decompileを正常に動作させる
 
 class AppBootStrapper {
 	static start() {
