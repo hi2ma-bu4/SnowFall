@@ -10,10 +10,13 @@ jasc.initSetting = {
 	},
 };
 
-// 型定義は持続させる、タプルを使用できるように
-// グローバル部分もlet変数再定義,const定数再代入を禁止にする,グローバル書き込みのvarを追加する
+// TODO: 型定義は持続させる、タプルを使用できるように
+// TODO: 計算式の括弧はタプルにさせない
+// TODO: グローバル部分もlet変数再定義,const定数再代入を禁止にする,グローバル書き込みのvarを追加する
 // TODO: 配列、連想配列、タプルは独自型を作成
-// TODO: decompileを正常に動作させる
+// TODO: 関数の入れ子に対応
+// TODO: グローバルスコープでもforを動作させる
+// TODO: decompileを正常に動作させる (無理)
 
 class AppBootStrapper {
 	static start() {
@@ -39,6 +42,18 @@ class SnowFallIDE {
 		MonacoConfigurator.configure();
 
 		const fileDefs = this.createFileDefinitions();
+
+		const sidebar = jasc.acq("#sidebar");
+		for (const name in fileDefs) {
+			const div = document.createElement("div");
+			div.textContent = "📄" + fileDefs[name].path.replace(/^(?:.*\/)?([^/]*)$/, "$1");
+			div.onclick = () => {
+				this.mainEditor.setModel(this.models[name]);
+				this.mainEditor.updateOptions(fileDefs[name].options);
+			};
+			sidebar.appendChild(div);
+		}
+
 		this.models = EditorModelManager.createModels(fileDefs);
 
 		this.mainEditor = monaco.editor.create(jasc.acq("#code-editor"), {
@@ -55,11 +70,6 @@ class SnowFallIDE {
 			automaticLayout: true,
 		});
 		monaco.editor.setTheme("SnowFallTheme-dark");
-
-		window.openFile = (name) => {
-			this.mainEditor.setModel(this.models[name]);
-			this.mainEditor.updateOptions(fileDefs[name].options);
-		};
 
 		this.runMainLogic();
 	}
@@ -96,6 +106,16 @@ class SnowFallIDE {
 					minimap: { enabled: false },
 				},
 			},
+			"output/decompile.sf": {
+				path: "output/decompile.sf",
+				language: "SnowFall",
+				content: "",
+				options: {
+					wordWrap: "off",
+					readOnly: true,
+					minimap: { enabled: true },
+				},
+			},
 		};
 	}
 
@@ -112,6 +132,7 @@ class SnowFallIDE {
 
 			this.models["main.sfc"].setValue(output.compiledJson);
 			this.models["output/result.txt"].setValue(output.resultText);
+			this.models["output/decompile.sf"].setValue(output.decompiled);
 			compileSize.textContent = output.sizeInfo;
 		});
 	}
@@ -523,6 +544,7 @@ print("End of program.");
 	static run(sourceCode, compact) {
 		let resultText = "";
 		let compiledJson = "";
+		let decompiled = "";
 		let sizeInfo = "";
 
 		const settings = {
@@ -536,14 +558,19 @@ print("End of program.");
 		try {
 			const compiled = SnowFall.compile(sourceCode, settings);
 			compiledJson = JSON.stringify(compiled, null, 0);
-			sizeInfo = `${compiledJson.length} bytes (${sourceCode.length} bytes)`;
+			try {
+				decompiled = SnowFall.decompile(compiled);
+			} catch (e) {
+				console.warn("decompile error: ", e);
+			}
+			sizeInfo = `${compiledJson.length} bytes (${sourceCode.length} bytes) [decompiled ${decompiled.length} bytes]`;
 			SnowFall.run(compiled, settings);
 		} catch (e) {
 			resultText += "エラー: " + e.message;
 			console.error(e);
 		}
 
-		return { resultText, compiledJson, sizeInfo };
+		return { resultText, compiledJson, decompiled, sizeInfo };
 	}
 }
 

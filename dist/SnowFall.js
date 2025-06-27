@@ -2160,10 +2160,29 @@ var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/creat
 var _defineProperty2 = _interopRequireDefault(require("@babel/runtime/helpers/defineProperty"));
 var _opcodes = require("../const/opcodes");
 var _compileddatahandler = _interopRequireDefault(require("../util/compileddatahandler"));
+var _jsonextended = _interopRequireDefault(require("../util/jsonextended"));
+var _opPrecedence;
+var Precedence;
+(function (Precedence) {
+  Precedence[Precedence["LOWEST"] = 0] = "LOWEST";
+  Precedence[Precedence["ASSIGNMENT"] = 1] = "ASSIGNMENT";
+  Precedence[Precedence["OR"] = 2] = "OR";
+  Precedence[Precedence["AND"] = 3] = "AND";
+  Precedence[Precedence["EQUALS"] = 4] = "EQUALS";
+  Precedence[Precedence["LESS_GREATER"] = 5] = "LESS_GREATER";
+  Precedence[Precedence["SUM"] = 6] = "SUM";
+  Precedence[Precedence["PRODUCT"] = 7] = "PRODUCT";
+  Precedence[Precedence["PREFIX"] = 8] = "PREFIX";
+  Precedence[Precedence["CALL"] = 9] = "CALL";
+  Precedence[Precedence["INDEX"] = 10] = "INDEX";
+})(Precedence || (Precedence = {}));
+var opPrecedence = (_opPrecedence = {}, (0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])(_opPrecedence, _opcodes.OpCode.BITWISE_OR, Precedence.OR), _opcodes.OpCode.BITWISE_AND, Precedence.AND), _opcodes.OpCode.EQUAL, Precedence.EQUALS), _opcodes.OpCode.NOT_EQUAL, Precedence.EQUALS), _opcodes.OpCode.GREATER_THAN, Precedence.LESS_GREATER), _opcodes.OpCode.GREATER_EQUAL, Precedence.LESS_GREATER), _opcodes.OpCode.LESS_THAN, Precedence.LESS_GREATER), _opcodes.OpCode.LESS_EQUAL, Precedence.LESS_GREATER), _opcodes.OpCode.ADD, Precedence.SUM), _opcodes.OpCode.SUBTRACT, Precedence.SUM), (0, _defineProperty2["default"])((0, _defineProperty2["default"])((0, _defineProperty2["default"])(_opPrecedence, _opcodes.OpCode.MULTIPLY, Precedence.PRODUCT), _opcodes.OpCode.DIVIDE, Precedence.PRODUCT), _opcodes.OpCode.MODULO, Precedence.PRODUCT));
 var Decompiler = exports.Decompiler = function () {
   function Decompiler(compiledOutput) {
     (0, _classCallCheck2["default"])(this, Decompiler);
     (0, _defineProperty2["default"])(this, "indentLevel", 0);
+    (0, _defineProperty2["default"])(this, "instructions", []);
+    (0, _defineProperty2["default"])(this, "localNames", new Map());
     this.func = _compileddatahandler["default"].decompress(compiledOutput);
   }
   return (0, _createClass2["default"])(Decompiler, [{
@@ -2174,20 +2193,14 @@ var Decompiler = exports.Decompiler = function () {
   }, {
     key: "valueToString",
     value: function valueToString(value) {
-      if (typeof value === "string") {
-        return "\"".concat(value.replace(/"/g, '\\"'), "\"");
-      }
-      if (typeof value === "bigint") {
-        return "".concat(value, "n");
-      }
-      if (value === null) {
-        return "null";
-      }
-      if ((0, _typeof2["default"])(value) === "object" && value !== null && value.chunk) {
-        var funcKey = JSON.stringify(value);
-        if (Decompiler.decompileCache.has(funcKey)) {
-          return Decompiler.decompileCache.get(funcKey);
-        }
+      if (typeof value === "string") return JSON.stringify(value);
+      if (typeof value === "bigint") return "".concat(value, "n");
+      if (value === null) return "null";
+      if ((0, _typeof2["default"])(value) === "object" && value !== null && (value.chunk || value.code)) {
+        var funcKey = _jsonextended["default"].stringify(value);
+        var cached = Decompiler.decompileCache.get(funcKey);
+        if (cached && !cached.includes("{ ... }")) return cached;
+        Decompiler.decompileCache.set(funcKey, "function ".concat(value.name || "(anonymous)", "(...) { ... }"));
         var nestedDecompiler = new Decompiler(value);
         var decompiledCode = nestedDecompiler.decompile();
         Decompiler.decompileCache.set(funcKey, decompiledCode);
@@ -2203,194 +2216,311 @@ var Decompiler = exports.Decompiler = function () {
       return map[op] || "?";
     }
   }, {
-    key: "decompile",
-    value: function decompile() {
-      var _this$func$chunk = this.func.chunk,
-        code = _this$func$chunk.code,
-        constants = _this$func$chunk.constants;
-      var funcKey = JSON.stringify({
-        code: code,
-        constants: constants
-      });
-      if (Decompiler.decompileCache.has(funcKey)) {
-        return Decompiler.decompileCache.get(funcKey);
-      }
-      var output = "";
-      var expressionStack = [];
-      var localNames = new Map();
-      localNames.set(0, this.func.name || "(script)");
-      for (var i = 0; i < this.func.arity; i++) {
-        localNames.set(i + 1, "param_".concat(i));
-      }
-      var getLocalName = function getLocalName(slot) {
-        if (!localNames.has(slot)) {
-          localNames.set(slot, "local_".concat(slot));
-        }
-        return localNames.get(slot);
-      };
-      if (this.func.name !== "main") {
-        var params = Array.from({
-          length: this.func.arity
-        }, function (_, i) {
-          return getLocalName(i + 1);
-        });
-        output += "".concat(this.indent(), "function ").concat(this.func.name, "(").concat(params.join(", "), ") {\n");
-        this.indentLevel++;
-      }
-      var ip = 0;
-      while (ip < code.length) {
-        var currentOp = code[ip];
-        if (ip + 3 < code.length && currentOp === _opcodes.OpCode.DUP && code[ip + 1] === _opcodes.OpCode.CHECK_TYPE && code[ip + 3] === _opcodes.OpCode.POP) {
-          ip += 4;
+    key: "decompileExpression",
+    value: function decompileExpression(startIp, endIp) {
+      var _stack$;
+      var opcodes = this.instructions.slice(startIp, endIp);
+      if (opcodes.length === 0) return "";
+      var stack = [];
+      for (var i = 0; i < opcodes.length; i++) {
+        console.log(JSON.stringify(stack));
+        if (i + 2 < opcodes.length && opcodes[i].op === _opcodes.OpCode.DUP && opcodes[i + 1].op === _opcodes.OpCode.CHECK_TYPE && opcodes[i + 2].op === _opcodes.OpCode.POP) {
+          i += 2;
           continue;
         }
-        ip++;
-        switch (currentOp) {
+        var _opcodes$i = opcodes[i],
+          op = _opcodes$i.op,
+          operand = _opcodes$i.operand;
+        var handled = false;
+        switch (op) {
           case _opcodes.OpCode.PUSH_CONST:
-            expressionStack.push(this.valueToString(constants[code[ip++]]));
+            stack.push({
+              text: this.valueToString(operand),
+              precedence: Precedence.LOWEST
+            });
+            handled = true;
             break;
           case _opcodes.OpCode.PUSH_TRUE:
-            expressionStack.push("true");
+            stack.push({
+              text: "true",
+              precedence: Precedence.LOWEST
+            });
+            handled = true;
             break;
           case _opcodes.OpCode.PUSH_FALSE:
-            expressionStack.push("false");
+            stack.push({
+              text: "false",
+              precedence: Precedence.LOWEST
+            });
+            handled = true;
             break;
           case _opcodes.OpCode.PUSH_NULL:
-            expressionStack.push("null");
+            stack.push({
+              text: "null",
+              precedence: Precedence.LOWEST
+            });
+            handled = true;
             break;
-          case _opcodes.OpCode.POP:
-            {
-              var expr = expressionStack.pop();
-              if (expr) {
-                output += "".concat(this.indent()).concat(expr, ";\n");
-              }
-              break;
-            }
-          case _opcodes.OpCode.DUP:
-            expressionStack.push(expressionStack[expressionStack.length - 1]);
-            break;
-          case _opcodes.OpCode.DEFINE_GLOBAL:
-            {
-              var name = constants[code[ip++]];
-              var value = expressionStack.pop() || "null";
-              output += "".concat(this.indent(), "let ").concat(name, " = ").concat(value, ";\n");
-              break;
-            }
           case _opcodes.OpCode.GET_GLOBAL:
-            expressionStack.push(constants[code[ip++]]);
-            break;
-          case _opcodes.OpCode.SET_GLOBAL:
-            {
-              var _name = constants[code[ip++]];
-              var _value = expressionStack.pop();
-              expressionStack.push("".concat(_name, " = ").concat(_value));
-              break;
-            }
           case _opcodes.OpCode.GET_LOCAL:
-            expressionStack.push(getLocalName(code[ip++]));
+            stack.push({
+              text: operand,
+              precedence: Precedence.LOWEST
+            });
+            handled = true;
             break;
-          case _opcodes.OpCode.SET_LOCAL:
-            {
-              var slot = code[ip++];
-              var _name2 = getLocalName(slot);
-              var _value2 = expressionStack.pop();
-              expressionStack.push("".concat(_name2, " = ").concat(_value2));
-              break;
-            }
           case _opcodes.OpCode.BUILD_ARRAY:
             {
-              var itemCount = code[ip++];
-              var elements = expressionStack.splice(expressionStack.length - itemCount, itemCount);
-              expressionStack.push("[".concat(elements.join(", "), "]"));
-              break;
-            }
-          case _opcodes.OpCode.BUILD_TUPLE:
-            {
-              var _itemCount = code[ip++];
-              var _elements = expressionStack.splice(expressionStack.length - _itemCount, _itemCount);
-              expressionStack.push("(".concat(_elements.join(", "), ")"));
-              break;
-            }
-          case _opcodes.OpCode.BUILD_OBJECT:
-            {
-              var pairCount = code[ip++];
-              var properties = [];
-              for (var _i = 0; _i < pairCount; _i++) {
-                var _value3 = expressionStack.pop();
-                var key = expressionStack.pop();
-                properties.unshift("".concat(key, ": ").concat(_value3));
-              }
-              expressionStack.push("{ ".concat(properties.join(", "), " }"));
+              var elements = stack.splice(stack.length - operand).map(function (s) {
+                return s.text;
+              });
+              stack.push({
+                text: "[".concat(elements.join(", "), "]"),
+                precedence: Precedence.LOWEST
+              });
+              handled = true;
               break;
             }
           case _opcodes.OpCode.GET_PROPERTY:
             {
-              var property = expressionStack.pop();
-              var object = expressionStack.pop();
-              if (property && property.startsWith('"') && property.endsWith('"')) {
-                var propName = property.slice(1, -1);
+              var prop = stack.pop();
+              var obj = stack.pop();
+              var text = "".concat(obj.text, "[").concat(prop.text, "]");
+              if (prop.text.startsWith('"') && prop.text.endsWith('"')) {
+                var propName = prop.text.slice(1, -1);
                 if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(propName)) {
-                  expressionStack.push("".concat(object, ".").concat(propName));
-                  break;
+                  text = "".concat(obj.text, ".").concat(propName);
                 }
               }
-              expressionStack.push("".concat(object, "[").concat(property, "]"));
-              break;
-            }
-          case _opcodes.OpCode.SET_PROPERTY:
-            {
-              var _value4 = expressionStack.pop();
-              var _property = expressionStack.pop();
-              var _object = expressionStack.pop();
-              var assignment = "".concat(_object, "[").concat(_property, "] = ").concat(_value4);
-              expressionStack.push(assignment);
-              break;
-            }
-          case _opcodes.OpCode.ADD:
-          case _opcodes.OpCode.SUBTRACT:
-          case _opcodes.OpCode.MULTIPLY:
-          case _opcodes.OpCode.DIVIDE:
-          case _opcodes.OpCode.MODULO:
-          case _opcodes.OpCode.EQUAL:
-          case _opcodes.OpCode.NOT_EQUAL:
-          case _opcodes.OpCode.GREATER_THAN:
-          case _opcodes.OpCode.GREATER_EQUAL:
-          case _opcodes.OpCode.LESS_THAN:
-          case _opcodes.OpCode.LESS_EQUAL:
-          case _opcodes.OpCode.BITWISE_AND:
-          case _opcodes.OpCode.BITWISE_OR:
-            {
-              var b = expressionStack.pop();
-              var a = expressionStack.pop();
-              expressionStack.push("(".concat(a, " ").concat(this.opToBinaryOperator(currentOp), " ").concat(b, ")"));
+              stack.push({
+                text: text,
+                precedence: Precedence.INDEX
+              });
+              handled = true;
               break;
             }
           case _opcodes.OpCode.NEGATE:
             {
-              var _expr = expressionStack.pop();
-              expressionStack.push("!(".concat(_expr, ")"));
+              var expr = stack.pop();
+              var _text = "!".concat(expr.precedence > Precedence.PREFIX ? "(".concat(expr.text, ")") : expr.text);
+              stack.push({
+                text: _text,
+                precedence: Precedence.PREFIX
+              });
+              handled = true;
               break;
             }
           case _opcodes.OpCode.CALL:
             {
-              var argCount = code[ip++];
-              var args = expressionStack.splice(expressionStack.length - argCount, argCount);
-              var callee = expressionStack.pop();
-              expressionStack.push("".concat(callee, "(").concat(args.join(", "), ")"));
+              var args = stack.splice(stack.length - operand).map(function (s) {
+                return s.text;
+              });
+              var callee = stack.pop();
+              var _text2 = "".concat(callee.text, "(").concat(args.join(", "), ")");
+              stack.push({
+                text: _text2,
+                precedence: Precedence.CALL
+              });
+              handled = true;
               break;
             }
-          case _opcodes.OpCode.RETURN:
-            {
-              if (ip < code.length) {
-                var _value5 = expressionStack.pop();
-                output += "".concat(this.indent(), "return").concat(_value5 ? " " + _value5 : "", ";\n");
-              }
-              break;
-            }
-          default:
-            break;
+        }
+        if (handled) continue;
+        var opPrec = opPrecedence[op];
+        if (opPrec) {
+          console.log("opPrec", opPrec, op);
+          var b = stack.pop();
+          var a = stack.pop();
+          var opStr = this.opToBinaryOperator(op);
+          var aText = a.precedence < opPrec ? a.text : "(".concat(a.text, ")");
+          var bText = b.precedence <= opPrec ? b.text : "(".concat(b.text, ")");
+          stack.push({
+            text: "".concat(aText, " ").concat(opStr, " ").concat(bText),
+            precedence: opPrec
+          });
         }
       }
+      return ((_stack$ = stack[0]) === null || _stack$ === void 0 ? void 0 : _stack$.text) || "";
+    }
+  }, {
+    key: "decompileStatementAt",
+    value: function decompileStatementAt(ip) {
+      var endOfStatementIp = ip;
+      var statementType = "unknown";
+      var defineGlobalIp = -1;
+      var popIp = -1;
+      for (var i = ip; i < this.instructions.length; i++) {
+        var currentOp = this.instructions[i].op;
+        if (currentOp === _opcodes.OpCode.DEFINE_GLOBAL) {
+          defineGlobalIp = i;
+          break;
+        }
+        if (currentOp === _opcodes.OpCode.POP && popIp === -1) {
+          popIp = i;
+        }
+        if (currentOp === _opcodes.OpCode.RETURN) {
+          endOfStatementIp = i;
+          statementType = "return";
+          break;
+        }
+      }
+      if (defineGlobalIp !== -1) {
+        statementType = "declaration";
+        endOfStatementIp = defineGlobalIp;
+      } else if (popIp !== -1) {
+        statementType = "expression";
+        endOfStatementIp = popIp;
+      } else if (statementType === "unknown" && ip < this.instructions.length && this.instructions[ip].op === _opcodes.OpCode.RETURN) {
+        statementType = "return";
+        endOfStatementIp = ip;
+      }
+      switch (statementType) {
+        case "declaration":
+          {
+            var varName = this.instructions[endOfStatementIp].operand;
+            var typeAnnotation = "";
+            var checkTypeInstr = this.instructions.slice(ip, endOfStatementIp).find(function (instr) {
+              return instr.op === _opcodes.OpCode.CHECK_TYPE;
+            });
+            if (checkTypeInstr && checkTypeInstr.operand) {
+              typeAnnotation = ":".concat(checkTypeInstr.operand);
+            }
+            var valueStr = this.decompileExpression(ip, endOfStatementIp);
+            var statement = "".concat(this.indent(), "let ").concat(varName).concat(typeAnnotation, " = ").concat(valueStr, ";\n");
+            return {
+              statement: statement,
+              nextIp: endOfStatementIp + 1
+            };
+          }
+        case "expression":
+          {
+            var expression = this.decompileExpression(ip, endOfStatementIp);
+            var _statement = expression ? "".concat(this.indent()).concat(expression, ";\n") : "";
+            return {
+              statement: _statement,
+              nextIp: endOfStatementIp + 1
+            };
+          }
+        case "return":
+          {
+            var arg = this.decompileExpression(ip, endOfStatementIp);
+            var _statement2 = "".concat(this.indent(), "return").concat(arg ? " " + arg : "", ";\n");
+            return {
+              statement: _statement2,
+              nextIp: endOfStatementIp + 1
+            };
+          }
+      }
+      if (ip < this.instructions.length) {
+        var op = this.instructions[ip].op;
+        return {
+          statement: "".concat(this.indent(), "/* Unknown Op: ").concat(_opcodes.OpCode[op], " */\n"),
+          nextIp: ip + 1
+        };
+      }
+      return {
+        statement: "",
+        nextIp: ip + 1
+      };
+    }
+  }, {
+    key: "decompileBlock",
+    value: function decompileBlock(startIp, endIp) {
+      var blockOutput = "";
+      var ip = startIp;
+      while (ip < endIp && ip < this.instructions.length) {
+        var result = this.decompileStatementAt(ip);
+        blockOutput += result.statement;
+        ip = result.nextIp;
+      }
+      return blockOutput;
+    }
+  }, {
+    key: "decompile",
+    value: function decompile() {
+      var _this = this;
+      var _this$func$chunk = this.func.chunk,
+        code = _this$func$chunk.code,
+        constants = _this$func$chunk.constants;
+      var funcKey = _jsonextended["default"].stringify({
+        name: this.func.name,
+        arity: this.func.arity,
+        code: code,
+        constants: constants
+      });
+      var cached = Decompiler.decompileCache.get(funcKey);
+      if (cached && !cached.includes("{ ... }")) return cached;
+      this.instructions = [];
+      for (var ip = 0; ip < code.length;) {
+        var offset = ip;
+        var op = code[ip++];
+        var operand = void 0,
+          size = 1;
+        switch (op) {
+          case _opcodes.OpCode.PUSH_CONST:
+          case _opcodes.OpCode.DEFINE_GLOBAL:
+          case _opcodes.OpCode.GET_GLOBAL:
+          case _opcodes.OpCode.SET_GLOBAL:
+            operand = constants[code[ip++]];
+            size = 2;
+            break;
+          case _opcodes.OpCode.BUILD_ARRAY:
+          case _opcodes.OpCode.BUILD_TUPLE:
+          case _opcodes.OpCode.BUILD_OBJECT:
+          case _opcodes.OpCode.GET_LOCAL:
+          case _opcodes.OpCode.SET_LOCAL:
+          case _opcodes.OpCode.CALL:
+            operand = code[ip++];
+            size = 2;
+            break;
+          case _opcodes.OpCode.JUMP:
+          case _opcodes.OpCode.JUMP_IF_FALSE:
+          case _opcodes.OpCode.SETUP_EXCEPTION:
+          case _opcodes.OpCode.LOOP:
+            operand = code[ip] << 8 | code[ip + 1];
+            ip += 2;
+            size = 3;
+            break;
+        }
+        this.instructions.push({
+          op: op,
+          operand: operand,
+          offset: offset,
+          size: size
+        });
+      }
+      var last = this.instructions[this.instructions.length - 1];
+      if ((last === null || last === void 0 ? void 0 : last.op) === _opcodes.OpCode.RETURN) {
+        var lastValueInstr = this.instructions[this.instructions.length - 2];
+        if ((lastValueInstr === null || lastValueInstr === void 0 ? void 0 : lastValueInstr.op) === _opcodes.OpCode.PUSH_NULL) {
+          this.instructions.splice(-2, 2);
+        }
+      }
+      this.localNames.clear();
+      if (this.func.name !== "main") {
+        this.localNames.set(0, this.func.name);
+        for (var i = 0; i < this.func.arity; i++) this.localNames.set(i + 1, "param_".concat(i + 1));
+      }
+      var nextLocalIndex = this.localNames.size;
+      this.instructions.forEach(function (instr) {
+        if (instr.op === _opcodes.OpCode.GET_LOCAL || instr.op === _opcodes.OpCode.SET_LOCAL) {
+          if (!_this.localNames.has(instr.operand)) {
+            _this.localNames.set(instr.operand, "local_".concat(nextLocalIndex++));
+          }
+          instr.operand = _this.localNames.get(instr.operand);
+        }
+      });
+      var output = "";
+      if (this.func.name !== "main") {
+        var params = Array.from({
+          length: this.func.arity
+        }, function (_, i) {
+          return _this.localNames.get(i + 1) || "param_".concat(i + 1);
+        });
+        output += "".concat(this.indent(), "function ").concat(this.func.name, "(").concat(params.join(", "), ") {\n");
+        this.indentLevel++;
+      }
+      output += this.decompileBlock(0, this.instructions.length);
       if (this.func.name !== "main") {
         this.indentLevel--;
         output += "".concat(this.indent(), "}\n");
@@ -2402,7 +2532,7 @@ var Decompiler = exports.Decompiler = function () {
 }();
 (0, _defineProperty2["default"])(Decompiler, "decompileCache", new Map());
 
-},{"../const/opcodes":27,"../util/compileddatahandler":36,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],29:[function(require,module,exports){
+},{"../const/opcodes":27,"../util/compileddatahandler":36,"../util/jsonextended":40,"@babel/runtime/helpers/classCallCheck":4,"@babel/runtime/helpers/createClass":6,"@babel/runtime/helpers/defineProperty":7,"@babel/runtime/helpers/interopRequireDefault":10,"@babel/runtime/helpers/typeof":20}],29:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {

@@ -10,26 +10,60 @@
 	<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
 
 	<script src="./main.js"></script>
+
+	<style>
+		html,
+		body {
+			margin: 0;
+			height: 100vh;
+		}
+
+		h1 {
+			margin: 0 0 0 10px;
+			font-size: 24px;
+		}
+
+		#compile-size {
+			margin: 0;
+		}
+
+		#sidebar {
+			white-space: nowrap;
+			max-width: 78px;
+			width: 100%;
+			overflow-x: auto;
+			background: #1e1e1e;
+			color: white;
+			padding: 10px;
+			font-size: 14px;
+		}
+
+		#code-editor {
+			flex: 2;
+		}
+
+		#output {
+			flex: 1;
+			border-top: 1px solid gray;
+		}
+	</style>
 </head>
-<body style="margin: 0; height: 100vh;">
-	<h1 style="margin: 0 0 0 10px; font-size: 24px;">SnowFall Language Demo</h1>
+<body>
+	<h1>SnowFall Language Demo</h1>
 	<div>
 		<button id="run-button">実行</button>
 		<label style="margin-right: 2em;">
 			<input type="checkbox" id="is-compact" checked>
 			Compact
 		</label>
-		<span id="compile-size" style="margin: 0;"></span>
+		<span id="compile-size"></span>
 	</div>
 	<div style="display:flex; height:calc(100% - 60px)">
-		<div id="sidebar" style="width:82px; background:#1e1e1e; color:white; padding:10px; font-size: 14px;">
-			<div onclick="openFile('main.sf')">📄 main.sf</div>
-			<div onclick="openFile('main.sfc')">📄 main.sfc</div>
-			<div onclick="openFile('output/result.txt')">📄 result.txt</div>
+		<div id="sidebar">
 		</div>
 		<div style="flex:1; display:flex; flex-direction:column;">
-			<div id="code-editor" style="flex:2;"></div>
-			<div id="output" style="flex:1; border-top:1px solid gray;"></div>
+			<div id="code-editor"></div>
+			<div id="output"></div>
 		</div>
 	</div>
 </body>
